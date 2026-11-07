@@ -1,0 +1,12 @@
+# 固定租户映射：user_id 是业务系统的可信用户标识，workspace 是 LightRAG 的数据隔离键。
+# 新增演示用户只需在此追加一条并重启服务；不要在这里写认证信息或密码。
+#
+# 约束（启动时校验，违反即拒绝启动）：
+#   - user_id 与 workspace 都不能重复；
+#   - workspace 只能包含字母、数字与下划线，不能为空；
+#   - 各租户的上传目录与工作目录由 workspace 推导，天然互不相同。
+tenants:
+  - user_id: user_1
+    workspace: ws_001
+  - user_id: user_2
+    workspace: ws_002

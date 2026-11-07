@@ -1,0 +1,14 @@
+# vendored LightRAG（lightrag-service/LightRAG）以可编辑方式安装，版本固定为 v1.5.7。
+# 这里只声明本项目二开所需的额外依赖，LightRAG 自身依赖由它的 pyproject.toml 提供。
+#
+# 安装顺序：
+#   pip install -e ./LightRAG
+#   pip install -r requirements.txt
+
+-e ./LightRAG
+
+# 配置与自检
+PyYAML>=6.0,<7.0
+
+# 单测
+pytest>=8.0
