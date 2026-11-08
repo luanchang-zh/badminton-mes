@@ -10,11 +10,16 @@
 | --- | --- | --- | --- | --- |
 | P1 | 多租户骨架：配置、注册表与启动校验 | `lightrag-service/` | `tenants.yaml`、`TenantRegistry`、校验器、编排文件，以及 51 项单测 | 无 ✅ 已完成 |
 | P2 | 多实例服务入口：路由、生命周期、限流与鉴权 | `lightrag-service/tenant/` | `server.py` 启动入口，`--print-routes` 输出两组前缀路由（各 33 条） | P1 ✅ 已完成 |
-| P3 | 隔离验证脚本 | `lightrag-service/scripts/` | `verify_isolation.py`，覆盖 5 类场景 | P2 |
+| P3 | 隔离验证脚本（替身验证 + 真实执行后置） | `lightrag-service/scripts/` | `verify_isolation.py` + `isolation/` 包，覆盖 6 类场景；`--self-check` 本机可跑 | P2 |
 | P4 | Java RAG 模块：租户映射与 RagClient | `backend-java` | 数据表、映射服务、`RagClient`，以及对应单测 | 只依赖 P2 的接口约定 |
 | P5 | Java RAG 接口：业务 API、SSE 流式输出与权限 | `backend-java` | `RagController`、Postman 用例 | P4 |
 
-P4 只依赖 LightRAG 的接口约定，可以和 P3 并行开发。按方案要求，**P3 一旦发现串数据，必须先回到 P2 修复**，修复后才能把 P4/P5 交付联调。
+**执行约束**：本机只做编码与单测，不启动容器、不连接 PostgreSQL / Neo4j、不调用真实模型。因此 P3 交付的是
+「验证工具 + 替身验证」，真实的跨租户隔离结论必须在有环境时执行一次 `--real` 才能得出；P4 / P5 的 Java 侧同理，
+只交付代码与单测，联调放到有环境时进行。
+
+P4 只依赖 LightRAG 的接口约定，可以和 P3 并行开发。按方案要求，**P3 一旦发现串数据，必须先回到 P2 修复**，
+修复后才能把 P4 / P5 交付联调。
 
 ## 目标目录结构
 
@@ -35,7 +40,15 @@ badminton-mes/
 │   │   ├── lifespan.py                 # P2 统一生命周期
 │   │   ├── llm_limiter.py              # P2 全局 Semaphore
 │   │   └── auth.py                     # P2 内部 API Key 校验
-│   ├── scripts/verify_isolation.py     # P3
+│   ├── scripts/
+│   │   ├── verify_isolation.py         # P3 入口（薄封装）
+│   │   ├── isolation/
+│   │   │   ├── clients.py              # HTTP / PG / Neo4j 三类协议与真实实现
+│   │   │   ├── scenarios.py            # S1～S6 判定逻辑（不依赖具体数据源）
+│   │   │   ├── runner.py               # CLI 编排与退出码
+│   │   │   └── report.py               # JSON 证据报告
+│   │   ├── fakes.py                    # 替身实现，供 --self-check 与单测共用
+│   │   └── README.md                   # 两类用法与后置执行清单
 │   ├── tests/                          # pytest 单测
 │   ├── docker-compose.yml              # ✅ PostgreSQL + pgvector、Neo4j + APOC
 │   ├── .env.example
@@ -152,29 +165,68 @@ badminton-mes/
 
 ---
 
-## P3：隔离验证脚本
+## P3：隔离验证脚本（编码 + 替身验证，真实执行后置）
 
-**目标**：`scripts/verify_isolation.py` 一条命令跑完 5 类场景，并输出 PASS/FAIL 汇总。它是普通 Python 脚本（使用 `httpx`、`psycopg`、`neo4j` 驱动），不依赖测试框架。
+**目标**：交付一个**结构上可被本机验证**的隔离验证工具。脚本的真实网络/数据库调用与场景判定逻辑严格分离，
+因此在本机没有 PostgreSQL、Neo4j 和模型的情况下，也能用替身跑完全部场景分支并断言判定正确。
+
+> **诚实说明**：本阶段交付的是「验证能力」，不是「已验证」。真实的跨租户数据隔离结论，必须在有完整环境时
+> 实际执行一次才能得出；在那之前，课设报告只能写"已实现隔离校验与验证工具"，不能写"已验证隔离成立"。
+
+### 设计要点：把 I/O 与判定分开
+
+这是本阶段唯一的关键决策。如果脚本直接 `httpx.get(...)` 再 `assert`，那它在本机就是一段无法验证的代码；
+拆成三层后，判定逻辑可以用替身完整覆盖：
+
+| 层 | 职责 | 本机能否验证 |
+| --- | --- | --- |
+| `clients.py` | 三个协议：HTTP 客户端、PostgreSQL 巡检、Neo4j 巡检；真实实现与替身实现各一套 | 接口与替身可测 |
+| `scenarios.py` | S1～S6 的判定逻辑，只依赖协议，不关心数据从哪来 | ✅ 完全可测 |
+| `runner.py` | CLI 编排、并发、报告输出、退出码 | ✅ 可测 |
 
 ### 场景
 
 | 编号 | 场景 | 判定方式 |
 | --- | --- | --- |
-| S1 | A 上传带唯一口令的文档，B 查询这个口令 | B 的 `naive`/`mix` 回答和检索上下文中不出现该口令；A 能查到 |
-| S2 | A、B 上传同名文件，但内容不同 | 两边的文档列表各自独立，内容未被覆盖，各自都能查到自己的口令 |
-| S3 | A、B 同时上传和删除（`asyncio.gather`） | 双方的任务状态和文档 ID 互不出现在对方的列表中，最终状态正确 |
-| S4 | 重启后恢复（脚本加 `--phase before/after`，中间手动重启服务） | 重启后双方的文档数量、状态、查询结果与重启前一致 |
-| S5 | 直连数据库核对 | PG 中各 `lightrag_*` 表按 `workspace` 分组，计数与各租户匹配；Neo4j 中各 workspace 的 Label 节点互不交叉 |
+| S1 | A 上传含唯一口令的文档，B 查询该口令 | B 的 `naive`/`mix` 回答与检索上下文都不出现该口令；A 能查到 |
+| S2 | A、B 上传同名但内容不同的文件 | 两边文档列表各自独立，内容未被覆盖，各自只查到自己那份 |
+| S3 | A、B 并发上传 + 并发删除（`asyncio.gather`） | 双方 doc_id 与任务状态不互相出现，最终状态正确 |
+| S4 | 重启后恢复（脚本自己管理服务子进程，`--restart`） | 重启后文档数、状态、查询结果与重启前一致 |
+| S5 | 直连数据库核对 | PG 各 `lightrag_*` 表按 workspace 分组计数与各租户匹配；**含 `LIGHTRAG_LLM_CACHE`**——缓存串了等于答案串了 |
+| S6 | Neo4j Label 隔离 | 各 workspace 的实体/关系节点集合互不交叉，且不落到 `base` 全局 Label |
 
-### 要求
+### 任务
 
-- 每次运行生成随机口令，避免历史数据干扰；脚本结束时清理本次上传的文档（可加 `--keep` 保留）。
-- 等待索引完成用轮询文档状态的方式实现，并设置超时，不要固定 sleep。
-- 连接信息从 `.env` 读取，不硬编码。
+1. **`scripts/isolation/`（新建包）**
+   - `clients.py`：`RagHttpClient` / `PgInspector` / `Neo4jInspector` 三个 `Protocol`；
+     真实实现（`httpx` / `psycopg` / `neo4j`）**延迟导入**，缺依赖时给出可读报错而不是崩栈。
+   - `scenarios.py`：S1～S6 各一个异步函数，入参是协议对象，返回 `ScenarioResult(id, status, evidence, detail)`；
+     `status` 取 `pass` / `fail` / `blocked`（环境缺失记 blocked，不伪装成 pass）。
+   - `runner.py`：参数解析、按场景挑选执行、并发跑 S3、汇总输出、退出码（全 pass 才 0）。
+   - `report.py`：生成 JSON 证据文件（含每场景的实测输入、观察到的事实、判定依据），供课设报告直接引用。
+2. **`scripts/verify_isolation.py`**：薄封装，只调用 `runner.main()`，保持文档里的命令不变。
+3. **`scripts/fakes.py`**：替身实现（内存版 HTTP 后端、假 PG 表、假 Neo4j 图），**同时**供
+   `--self-check` 模式与 pytest 使用——同一份替身，避免"测试用的替身和脚本用的不是一回事"。
+4. **`--self-check` 模式**：不需要任何外部服务，用替身把 S1～S6 全跑一遍，用于演示流程与自检编排是否正确。
+5. **`scripts/README.md`**：写清两类用法——本机 `--self-check`，有环境时 `--real`。
+6. **后置执行清单**：把"有环境后要跑的完整命令、需要准备的配置、预期输出、失败时怎么排查"写成一节，
+   交给你在环境就绪时照做，避免到时候还要重新设计方案。
+
+### 单测（pytest，本机全部可跑）
+
+- **判定正确性**：每个场景分别喂"正常数据"与"串数据"，断言前者 `pass`、后者 `fail`——
+  这是最关键的一类测试：**证明脚本抓得住串数据**，而不是永远返回 pass。
+- **blocked 语义**：环境缺失（连接失败、文档索引超时）时记为 `blocked` 而非 `pass`。
+- **超时与轮询**：索引等待用可注入的时钟/轮询替身，验证超时后返回 `blocked`，不写死 `sleep`。
+- **runner**：全 pass 退出码 0；任一 fail 退出码非 0；`--only S1,S3` 只跑指定场景；JSON 报告字段完整。
+- **口令生成**：每轮随机且唯一，两次运行不重复。
+- **真实客户端的降级**：缺 `psycopg` / `neo4j` 时给出可读提示，不抛原始 ImportError。
 
 ### 完成标准
 
-在有完整环境时 S1～S5 全部 PASS；本机阶段只要求脚本写完，并能对 mock 环境或空库正常执行。**出现 FAIL 时先回到 P2 修复。**
+- `pytest lightrag-service/tests` 全绿（含新增的脚本单测）；
+- `python scripts/verify_isolation.py --self-check` 在本机跑完 S1～S6 并输出结构化结论；
+- `--real` 路径的代码完整、参数齐备，但因缺环境**不要求本机执行**——这一点在报告里明确标注。
 
 ---
 
@@ -261,6 +313,10 @@ badminton-mes/
 | `WHITELIST_PATHS` 被误设为 `/*` 会让租户路由免鉴权 | 🔴 | P2 启动时校验白名单，包含 `/*` 直接拒绝启动 |
 | 多租户同时索引，耗尽模型配额 | 🟡 | P2 用全局 Semaphore 加 `MAX_PENDING_DOCUMENTS` 限制 |
 | Spring Boot 4 下 SSE 转发的依赖选型 | 🟢 | 在 P4 中优先使用不新增依赖的方案 |
+| **跨租户数据隔离尚未经过真实执行验证** | 🔴 | P3 只交付脚本与替身验证；有环境后必须实际跑一次 `--real`，在此之前**不得声称隔离已验证** |
+| 模型供应商未定，P1/P2/P3 均未调用真实模型 | 🟡 | 填 `LR_LLM_MODEL` / `LR_EMBEDDING_MODEL` / `LR_EMBEDDING_DIM` 即可，代码已按 OpenAI 兼容接口就绪 |
+| `WHITELIST_PATHS` 设为 `/tenant/*` 同样会让租户路由免鉴权 | 🟡 | P2 只拦全通配；建议后续追加前缀拦截（未纳入 P2 验收） |
+| 进程 CWD 下的 `.env` 是启动校验盲区 | 🟡 | 标准启动目录（`lightrag-service`）不受影响；后续可在入口固定 `.env` 查找路径 |
 
 > v1.5.7 的 `pipeline_status` 已确认按 workspace 隔离（`initialize_storages()` 内部按 `self.workspace` 初始化），
 > 原 🔴 风险降级为已解决。
