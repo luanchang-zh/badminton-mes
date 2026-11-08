@@ -10,8 +10,8 @@
 | --- | --- | --- | --- | --- |
 | P1 | 多租户骨架：配置、注册表与启动校验 | `lightrag-service/` | `tenants.yaml`、`TenantRegistry`、校验器、编排文件，以及 51 项单测 | 无 ✅ 已完成 |
 | P2 | 多实例服务入口：路由、生命周期、限流与鉴权 | `lightrag-service/tenant/` | `server.py` 启动入口，`--print-routes` 输出两组前缀路由（各 33 条） | P1 ✅ 已完成 |
-| P3 | 隔离验证脚本（替身验证 + 真实执行后置） | `lightrag-service/scripts/` | `verify_isolation.py` + `isolation/` 包，覆盖 6 类场景；`--self-check` 本机可跑 | P2 |
-| P4 | Java RAG 模块：租户映射与 RagClient | `backend-java` | 数据表、映射服务、`RagClient`，以及对应单测 | 只依赖 P2 的接口约定 |
+| P3 | 隔离验证脚本（替身验证 + 真实执行后置） | `lightrag-service/scripts/` | `verify_isolation.py` + `isolation/` 包，6 类场景；36 项单测，`--self-check` 全 PASS | P2 ✅ 已完成 |
+| P4 | Java RAG 模块：租户映射与 RagClient | `backend-java/module/rag/` | 绑定表、`RagTenantResolver`、`RagClient`、状态归一化，以及 Mockito 单测 | P2 ✅ 已完成 |
 | P5 | Java RAG 接口：业务 API、SSE 流式输出与权限 | `backend-java` | `RagController`、Postman 用例 | P4 |
 
 **执行约束**：本机只做编码与单测，不启动容器、不连接 PostgreSQL / Neo4j、不调用真实模型。因此 P3 交付的是
@@ -54,12 +54,17 @@ badminton-mes/
 │   ├── .env.example
 │   └── requirements.txt
 └── backend-java/src/main/java/com/badminton/mes/module/rag/
-    ├── config/   RagProperties, RagClientConfig
-    ├── client/   RagClient
-    ├── dal/      RagTenantBinding 实体 + Repository
-    ├── service/  RagTenantResolver, RagDocumentService, RagQueryService, RagGraphService
-    └── controller/ RagDocumentController, RagQueryController, RagGraphController
+    ├── constants/  RagErrorCodeConstants                 # P4
+    ├── enums/      RagDocumentStatus                     # P4 状态归一化
+    ├── config/     RagProperties                         # P4 配置绑定
+    ├── dal/        RagTenantBinding + Repository         # P4 租户绑定表
+    ├── client/     RagClient                             # P4 HTTP 客户端
+    ├── service/    RagTenantResolver                     # P4 租户解析
+    └── controller/ RagDocument/Query/GraphController     # P5 对外接口
 ```
+
+> 迁移脚本：`src/main/resources/db/migration/V2026110801__create_rag_tenant_binding.sql`（P4）；
+> 演示绑定：`src/main/resources/db/dev-migration/R__Insert_Rag_Tenant_Binding.sql`（P4）。
 
 ---
 
@@ -165,7 +170,7 @@ badminton-mes/
 
 ---
 
-## P3：隔离验证脚本（编码 + 替身验证，真实执行后置）
+## P3：隔离验证脚本（编码 + 替身验证，真实执行后置）✅ 已完成
 
 **目标**：交付一个**结构上可被本机验证**的隔离验证工具。脚本的真实网络/数据库调用与场景判定逻辑严格分离，
 因此在本机没有 PostgreSQL、Neo4j 和模型的情况下，也能用替身跑完全部场景分支并断言判定正确。
@@ -232,37 +237,88 @@ badminton-mes/
 
 ## P4：Java RAG 模块——租户映射与 RagClient
 
-**目标**：在 `module/rag` 下完成底层能力：确定当前登录用户对应哪个 tenant，以及调用 LightRAG 的客户端。暂时不对外暴露接口。
+**目标**：在 `backend-java` 里完成底层能力：**确定当前登录用户对应哪个 LightRAG 租户**，以及**调用 LightRAG HTTP 接口的客户端**。
+本阶段不对外暴露接口，Controller 属于 P5。
+
+### 代码基线（动手前已核对）
+
+| 事实 | 位置 | 对实现的影响 |
+| --- | --- | --- |
+| 已有同步 HTTP 客户端范式 | `integration/service/ErpRemoteClient.java` 用 `RestClient` + `SimpleClientHttpRequestFactory` + `@ConditionalOnProperty` | RAG 客户端沿用同一套写法，不引入 WebFlux |
+| 登录上下文取用户 | `common/security/SecurityContextHolder.getRequiredLoginUser()` → `LoginUser.getUserId()` | 租户映射的输入就取这里，**不接受前端传 user_id** |
+| 模块分层约定 | `module/wage/`：`constants / controller(+vo) / convert / dal / enums / service` | `module/rag/` 照此分层 |
+| 返回体约定 | `common/core/CommonResult`、`PageResult` | P5 的返回统一用它 |
+| 错误码约定 | 全局用 `GlobalErrorCodeConstants`，模块专属放 `module/<x>/constants/XxxErrorCodeConstants` | 新建 `RagErrorCodeConstants` |
+| 迁移文件命名 | `V2026071601__xxx.sql`，演示数据放 `db/dev-migration/R__xxx.sql` | 新增 `V2026110801__create_rag_tenant_binding.sql` |
+| 配置前缀惯例 | `mes.<模块>.<子项>`，值用 `${ENV:default}` | 用 `mes.rag.*` |
 
 ### 任务
 
-1. **Flyway 迁移** `V2026110701__rag_tenant_binding.sql`（MySQL）：
+1. **Flyway 迁移 `V2026110801__create_rag_tenant_binding.sql`**
 
-   | 字段 | 说明 |
-   | --- | --- |
-   | `id` | 主键 |
-   | `user_id` | 业务系统用户 ID，唯一 |
-   | `tenant_id` | 与 `tenants.yaml` 中的 `user_id` 对应，唯一 |
-   | `enabled` | 是否启用 |
-   | `created_at` / `updated_at` | 审计字段 |
+   | 字段 | 类型 | 说明 |
+   | --- | --- | --- |
+   | `id` | bigint PK | 主键 |
+   | `user_id` | bigint | 业务系统用户主键，唯一索引 |
+   | `tenant_id` | varchar(64) | 对应 `tenants.yaml` 的 `user_id`，唯一索引 |
+   | `enabled` | tinyint | 是否启用 |
+   | `created_at` / `updated_at` | datetime | 审计字段 |
 
-   演示账号的绑定数据放到 `dev-migration`。文档本身的元数据以 LightRAG 为准，**暂时不建表**（YAGNI，只在确有需要时再加）。
-2. **`RagProperties`**（`application.yml` 中的 `rag.*`）：`base-url`、`internal-api-key`（从环境变量读取）、连接/读取超时、上传大小上限。
-3. **`RagTenantResolver`**：从 `SecurityContextHolder` 取出 `LoginUser`，查询绑定得到 `tenantId`；未绑定或已禁用时抛出业务异常。**整个流程不接收前端传入的 user_id。**
-4. **`RagClient`**（`RestClient` 负责普通请求，`WebClient` 只用于 SSE；如果项目中没有 webflux 依赖，SSE 改用 `RestClient` 的流式读取或 `HttpClient`，以减少依赖）：
-   - 统一拼接 `/tenant/{tenantId}` 前缀，统一注入 `X-API-Key`。
-   - 方法：`uploadDocument`、`listDocuments`、`deleteDocument`、`reindex`、`query`、`queryStream`、`getGraphLabels`、`getGraph`。
-   - 统一做错误转换：LightRAG 的 4xx/5xx 和超时转成项目的业务异常，不把内部地址透传给前端。
-   - `tenantId` 只能由 Resolver 传入，Client 内部再按白名单正则校验一次，防止路径注入。
+   演示数据：`db/dev-migration/R__Insert_Rag_Tenant_Binding.sql`，给现有演示用户绑定 `user_1` / `user_2`。
 
-### 单测（JUnit + Mockito / `MockRestServiceServer`）
+2. **`RagProperties`（`mes.rag.*`）**
 
-- Resolver：已绑定时返回 tenant；未绑定、已禁用、未登录时分别抛出对应异常。
-- RagClient：请求路径带正确前缀、Header 带上 Key；非法 tenantId 被拒绝；远端返回 500 或超时时转换为业务异常。
+   ```yaml
+   mes:
+     rag:
+       base-url: ${MES_RAG_BASE_URL:http://127.0.0.1:9621}
+       internal-api-key: ${MES_RAG_INTERNAL_API_KEY:}
+       connect-timeout: ${MES_RAG_CONNECT_TIMEOUT:3s}
+       read-timeout: ${MES_RAG_READ_TIMEOUT:60s}
+       max-upload-size: ${MES_RAG_MAX_UPLOAD_SIZE:20971520}
+   ```
+
+3. **`RagTenantResolver`**
+   - 从 `SecurityContextHolder` 取当前 `userId` → 查绑定表得到 `tenantId`；
+   - 未绑定、已禁用、租户标识非法都抛 `RagErrorCodeConstants` 里对应的错误码；
+   - **不提供任何接受前端传入 tenant 的重载**——从签名上就杜绝越权。
+
+4. **`RagClient`**
+   - 用 `RestClient`；统一拼接 `/tenant/{tenantId}` 前缀、统一注入 `X-API-Key`；
+   - `tenantId` 由 Resolver 传入，Client 内部再用白名单正则 `^[A-Za-z0-9_]+$` 校验一次，防路径注入；
+   - 方法：`uploadText`、`listDocuments`、`deleteDocument`、`reindex`、`query`、`getGraphLabels`、`getGraph`；
+   - 统一错误转换：把 4xx/5xx、`RestClientException`、超时翻译成带模块错误码的 `ServiceException`，
+     **不透传内部地址或上游原始异常文本**。
+
+5. **`RagDocumentStatus` 枚举与状态归一化**
+   上游文档状态命名在不同版本略有差异（`pending` / `processing` / `processed` / `failed` 等）。
+   统一归一化为本系统的四种：处理中 / 已完成 / 失败 / 未知，供 P5 前端轮询展示。
+
+6. **`RagErrorCodeConstants`**
+   模块专属错误码：租户未绑定、租户已禁用、上游不可达、上游返回错误、上传超限、非法租户标识。
+
+### 单测（JUnit + Mockito，本机可跑）
+
+| 测试类 | 覆盖内容 |
+| --- | --- |
+| `RagTenantResolverTest` | 已绑定返回 tenant；未绑定 / 已禁用 / 未登录 / 非法 tenantId 分别抛对应错误码 |
+| `RagClientTest` | 用 `MockRestServiceServer` 断言：请求路径带正确 `tenantId` 前缀、Header 带 `X-API-Key`、非法 tenantId 被拒、远端 500 与超时被转成业务异常 |
+| `RagDocumentStatusTest` | 各上游状态字符串归一化正确，未知值落到「未知」而不是抛异常 |
+| `RagPropertiesTest` | 配置绑定与默认值 |
+
+**不写 `@SpringBootTest`**：本机不连 MySQL / Redis，配置与 Resolver 用 Mockito 注入即可覆盖。
 
 ### 完成标准
 
-`./gradlew test` 通过，新增类的单测覆盖率达到 85% 以上。
+- `./gradlew test` 全绿，新增类单测覆盖率 ≥ 85%；
+- 全部单测不依赖 MySQL、Redis 与真实 LightRAG 服务；
+- 不新增 WebFlux 依赖。
+
+### 与前后阶段的关系
+
+- **依赖 P2 的接口约定**：`/tenant/{user_id}/...` 前缀、`X-API-Key`、33 条路由的语义。
+- **不依赖 P3**：P3 验证的是 LightRAG 服务端的隔离，与 Java 侧调用链无关。
+- **为 P5 提供**：Resolver 与 Client 是 P5 所有 Controller 的唯一入口。
 
 ---
 
