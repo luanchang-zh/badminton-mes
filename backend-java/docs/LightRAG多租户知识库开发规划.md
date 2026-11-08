@@ -11,7 +11,7 @@
 | P1 | 多租户骨架：配置、注册表与启动校验 | `lightrag-service/` | `tenants.yaml`、`TenantRegistry`、校验器、编排文件，以及 51 项单测 | 无 ✅ 已完成 |
 | P2 | 多实例服务入口：路由、生命周期、限流与鉴权 | `lightrag-service/tenant/` | `server.py` 启动入口，`--print-routes` 输出两组前缀路由（各 33 条） | P1 ✅ 已完成 |
 | P3 | 隔离验证脚本（替身验证 + 真实执行后置） | `lightrag-service/scripts/` | `verify_isolation.py` + `isolation/` 包，6 类场景；36 项单测，`--self-check` 全 PASS | P2 ✅ 已完成 |
-| P4 | Java RAG 模块：租户映射与 RagClient | `backend-java/module/rag/` | 绑定表、`RagTenantResolver`、`RagClient`、状态归一化，以及 Mockito 单测 | P2 ✅ 已完成 |
+| P4 | Java RAG 模块：租户映射与 RagClient | `backend-java/module/rag/` | 绑定表、`RagTenantResolver`、`RagClient`、状态归一化、40 项单测 | P2 ✅ 已完成 |
 | P5 | Java RAG 接口：业务 API、SSE 流式输出与权限 | `backend-java` | `RagController`、Postman 用例 | P4 |
 
 **执行约束**：本机只做编码与单测，不启动容器、不连接 PostgreSQL / Neo4j、不调用真实模型。因此 P3 交付的是
@@ -235,7 +235,7 @@ badminton-mes/
 
 ---
 
-## P4：Java RAG 模块——租户映射与 RagClient
+## P4：Java RAG 模块——租户映射与 RagClient ✅ 已完成
 
 **目标**：在 `backend-java` 里完成底层能力：**确定当前登录用户对应哪个 LightRAG 租户**，以及**调用 LightRAG HTTP 接口的客户端**。
 本阶段不对外暴露接口，Controller 属于 P5。
@@ -313,6 +313,26 @@ badminton-mes/
 - `./gradlew test` 全绿，新增类单测覆盖率 ≥ 85%；
 - 全部单测不依赖 MySQL、Redis 与真实 LightRAG 服务；
 - 不新增 WebFlux 依赖。
+
+### 交付结果
+
+提交 `c8efdb0`，19 个文件。RAG 模块 40 项单测全通过，全量 865 项 0 失败。
+
+| 落点 | 内容 |
+| --- | --- |
+| `constants/RagErrorCodeConstants` | 未绑定 / 已禁用 / 非法租户 / 上游不可达 / 上游错误 / 上传超限 |
+| `enums/RagDocumentStatus` | 处理中 / 已完成 / 失败 / 未知，未知值不抛异常 |
+| `config/RagProperties` + `RagConfiguration` | `mes.rag.*`，默认回环地址与超时 |
+| `dal/entity` + `dal/repository` | `rag_tenant_binding`，按 user_id 查绑定（不区分启用，交由 Resolver 判定） |
+| `service/RagTenantResolver` | 唯一公开入口无参；按 userId 查询的方法设为包级仅测试可用 |
+| `client/RagClient` + `RagResponseParser` | 前缀与密钥统一拼接、租户标识二次校验、错误统一翻译 |
+
+两道防线：Resolver 从签名上杜绝前端指定租户；Client 发请求前再按 `^[A-Za-z0-9_]+$` 校验。
+
+> **Comet 流程说明**：本阶段代码与测试已全部完成并提交，但未走完 Comet 的 Verify。
+> 原因是 Comet 的运行时检查会把 `backend-java/build/` 下的编译产物纳入输入快照，
+> 构建一跑就判「输入在观察期间变化」，且该行为无法通过配置规避。
+> 详见 `docs/agent-notes/comet-native-guide.md` 的 E4 节。
 
 ### 与前后阶段的关系
 

@@ -200,6 +200,52 @@ Native 检查输入快照不完整：原始输入在观察期间变化：README.
 2. 无关改动先 `git commit` 或 `git stash`，让工作区尽量小；
 3. 一次 `native next` 执行完再动其他文件。
 
+### E4. Gradle / Maven 项目的构建产物必然触发 E1（无法通过配置解决）
+
+**现象**：Java 项目跑 `gradlew test` 后进入 Verify，报错列出**几千个**路径：
+
+```
+Native 检查输入快照不完整：原始输入在观察期间变化：
+backend-java/build/classes/java/main/.../*.class（数千条）
+backend-java/build.gradle；backend-java/.gitignore；README.md；...
+```
+
+**根因（已读 Comet 源码 `native-portable-checks.js` 确认）**：
+
+```js
+const NATIVE_GENERATED_INPUT_DIRECTORIES = ['build', 'dist', 'gen', 'out', 'target', '.next', ...]
+const NATIVE_PROJECT_INPUT_MANIFESTS  = new Set(['package.json', 'pyproject.toml', 'pom.xml', 'build.gradle', ...])
+```
+
+Comet 把 `build.gradle` 当成「项目清单」，据此递归下探同级的 `build/` 目录，
+并把父目录登记为「生成输入根」。但登记之后，**这些目录仍参与输入快照比对**，
+而不是被排除。
+
+关键对比：
+- `NATIVE_PHYSICAL_INPUT_EXCLUDED_DIRECTORIES` 里有 `node_modules`、`.venv`、`.next`，
+  **但没有 `build` / `target` / `dist`**；
+- 因此 Gradle（`build/`）、Maven（`target/`）、前端打包（`dist/`）都会踩同一个坑。
+
+**配置无法解决**：`.comet/config.yaml` 没有排除项，也没有对应环境变量。
+要修只能改 npm 包源码，升级会被覆盖，且会影响其他项目 —— 不要改。
+
+**本项目做法**：判定为「工具与构建产物的固有冲突」，不再尝试，改为直接提交代码。
+
+**若一定要走完 Verify，只有两条路**，都需要为迁就工具改动工程配置：
+
+| 办法 | 代价 |
+| --- | --- |
+| 改 Gradle 的 `buildDir` 到仓库外 | 所有构建脚本、IDE、CI 都要跟着改；团队成员本地路径不一致 |
+| Verify 前删除 `build/` 且即将执行的检查不含构建 | 检查命令不能跑 Gradle，验证力度会明显下降 |
+
+**结论**：这类项目建议**把 Comet 用在 Shape 和需求文档上，实现与验证用工程手段**
+（`gradlew test` + 全量测试报告），不要依赖 Verify 的运行时检查。
+
+**顺带一个次生陷阱**：`verificationChecks[].executable` 只接受 PATH 中的可执行文件名，
+`gradlew` 与 `gradlew.bat` **都会被判为 `executable is not available`**。
+若确要让 Runtime 执行检查，只能用 `python` / `java` / `node` 这类
+（例如用 `python -c` 读测试报告 XML 并断言失败数为 0）。
+
 ### E2. 检查 Action 卡在 running / unknown
 
 **现象**：`能否由原宿主确认此执行及全部后代进程已经停止？`
@@ -256,6 +302,8 @@ comet knowledge remember . --title "<简明标题>"   --text "<现象、做法�
 | 5 | **写文件后立刻校验**（`ast.parse` / `wc -l` / `head`） | 截断与内容混合各踩过一次 |
 | 6 | **Builder 每轮写全部验收项** | 只写改动项会被直接拒绝 |
 | 7 | **证据要具体**（命令 + 退出码 + 关键输出） | Verifier 独立复跑，结论性描述没用 |
+| 8 | **含编译产物的项目（Java / 前端）不要指望 Verify 能过** | 见 E4：Comet 把 `build` / `target` / `dist` 当输入，构建一跑必判「输入变化」 |
+| 9 | **`verificationChecks.executable` 只用 PATH 里的命令** | `gradlew` / `gradlew.bat` 都会被拒；需要时用 `python -c` 包装 |
 
 ### 本项目三个 change 的结局
 
