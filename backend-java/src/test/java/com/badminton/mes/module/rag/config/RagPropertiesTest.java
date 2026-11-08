@@ -25,6 +25,8 @@ class RagPropertiesTest {
         assertThat(properties.getConnectTimeout()).isEqualTo(Duration.ofSeconds(3));
         assertThat(properties.getReadTimeout()).isEqualTo(Duration.ofSeconds(60));
         assertThat(properties.getMaxUploadSize()).isEqualTo(20L * 1024 * 1024);
+        assertThat(properties.getStreamReadTimeout()).isEqualTo(Duration.ofMinutes(2));
+        assertThat(properties.getSseTimeout()).isEqualTo(Duration.ofMinutes(3));
     }
 
     @Test

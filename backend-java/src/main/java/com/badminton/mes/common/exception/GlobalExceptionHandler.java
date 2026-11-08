@@ -16,6 +16,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import jakarta.validation.ConstraintViolationException;
 
@@ -93,6 +95,40 @@ public class GlobalExceptionHandler {
         String detail = exception.getParameterName() + ": 必填查询参数不能为空";
         logger.warn("[查询参数缺失] {}", detail);
         return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, detail);
+    }
+
+    /**
+     * 处理 multipart 请求缺少文件部件。
+     *
+     * <p>不处理会落到兜底分支，用户少传一个文件就得到「系统繁忙」，与实际情况不符。
+     *
+     * @param exception 缺少请求部件异常
+     * @return A0400 参数错误响应
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<CommonResult<Void>> handleMissingServletRequestPartException(
+            MissingServletRequestPartException exception) {
+        String detail = exception.getRequestPartName() + ": 必填文件不能为空";
+        logger.warn("[请求部件缺失] {}", detail);
+        return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, detail);
+    }
+
+    /**
+     * 处理上传文件超过容器上限。
+     *
+     * <p>容器上限（{@code spring.servlet.multipart.max-file-size}）比业务上限略高，
+     * 落在两者之间时由业务层拒绝，超过容器上限才会走到这里；
+     * 同样必须是参数错误而不是系统错误。
+     *
+     * @param exception 上传超限异常
+     * @return A0400 参数错误响应
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<CommonResult<Void>> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException exception) {
+        logger.warn("[上传文件超过容器上限] {}", exception.getMessage());
+        return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR,
+                "上传文件超过大小上限");
     }
 
     /**

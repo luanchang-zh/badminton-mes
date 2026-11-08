@@ -12,7 +12,7 @@
 | P2 | 多实例服务入口：路由、生命周期、限流与鉴权 | `lightrag-service/tenant/` | `server.py` 启动入口，`--print-routes` 输出两组前缀路由（各 33 条） | P1 ✅ 已完成 |
 | P3 | 隔离验证脚本（替身验证 + 真实执行后置） | `lightrag-service/scripts/` | `verify_isolation.py` + `isolation/` 包，6 类场景；36 项单测，`--self-check` 全 PASS | P2 ✅ 已完成 |
 | P4 | Java RAG 模块：租户映射与 RagClient | `backend-java/module/rag/` | 绑定表、`RagTenantResolver`、`RagClient`、状态归一化、40 项单测 | P2 ✅ 已完成 |
-| P5 | Java RAG 接口：业务 API、SSE 流式输出与权限 | `backend-java` | `RagController`、Postman 用例 | P4 |
+| P5 | Java RAG 接口：业务 API、SSE 流式输出与权限 | `backend-java` | 3 个 Controller、2 个 Service、SSE 流式链路、Postman 用例 | P4 ✅ 已完成 |
 
 **执行约束**：本机只做编码与单测，不启动容器、不连接 PostgreSQL / Neo4j、不调用真实模型。因此 P3 交付的是
 「验证工具 + 替身验证」，真实的跨租户隔离结论必须在有环境时执行一次 `--real` 才能得出；P4 / P5 的 Java 侧同理，
@@ -342,7 +342,7 @@ badminton-mes/
 
 ---
 
-## P5：Java RAG 接口——业务 API、SSE 与权限
+## P5：Java RAG 接口——业务 API、SSE 与权限 ✅ 已完成
 
 **目标**：对外提供 `/api/rag/**` 接口，前端只需要登录态，不传任何租户标识。
 
@@ -375,6 +375,104 @@ badminton-mes/
 ### 完成标准
 
 单测通过；在有完整环境时用 Postman 以两个账号调用，各自只能看到自己的数据。
+
+---
+
+### 实施记录（已完成）
+
+**代码位置**：`com.badminton.mes.module.rag`
+
+| 层 | 文件 | 职责 |
+| --- | --- | --- |
+| controller | `RagDocumentController` / `RagQueryController` / `RagGraphController` | 参数校验、文件转文本、转发 Service |
+| controller.vo | `RagDocumentRespVO` / `RagQueryReqVO` / `RagQueryRespVO` / `RagGraphRespVO` / `RagReindexReqVO` / `RagTextUploadReqVO` | 对外契约 |
+| service | `RagDocumentService` / `RagQueryService` + `impl` | 解析租户、调用客户端 |
+| client | `RagClient`（同步）/ `RagStreamClient`（流式）/ `RagTenantGuard`（安全守卫） | 上游调用 |
+| sse | `RagSseEventNames` / `RagSsePayloads` | 事件名与载荷 |
+| enums | `RagQueryMode` / `RagDocumentStatus` | 取值白名单与状态归一化 |
+
+**与规划的三处偏差**（均为收敛重复实现）：
+
+1. 接口路径拆成三个 Controller（文档 / 问答 / 图谱），而不是全部塞进一个：
+   三者角色要求不同（文档写操作限角色，问答与图谱登录即可），混在一个类里
+   会让 `@RequiresRoles` 的粒度被迫拉齐到最严的那一档。
+2. 新增 `POST /api/rag/documents/text`：小程序与脚本往往只有文本没有文件对象。
+3. 上传大小与租户格式校验只在 `RagClient` / `RagTenantGuard` 里做一份，
+   Service 不重复校验——重复校验一旦漂移，会出现「一条路径能越权、另一条不能」。
+
+**SSE 设计要点**：
+
+- 读循环跑在虚拟线程执行器上（`Executors.newVirtualThreadPerTaskExecutor`）：
+  每次流式问答阻塞在一个 HTTP 读取上可达数分钟，固定线程池会被占满。
+- **租户必须在请求线程解析**：登录上下文是 `ThreadLocal`，跨线程取不到。
+- 客户端断开 / 超时 / 出错三个回调都触发 `StreamCancellation.cancel()`，
+  关闭上游流句柄让阻塞中的 `readLine` 立刻返回，模型侧生成随之停止。
+- 上游 `error` 行直接抛异常中断读取，由外层统一发 `error` 事件后 `complete`；
+  若在行内直接 `complete`，后续空行会再次 `complete`。
+- SSE 已发响应头后无法再改 HTTP 状态码，因此错误只能走事件通道。
+
+**事件协议**：
+
+| 事件 | data | 说明 |
+| --- | --- | --- |
+| `references` | 字符串数组 | 参考片段，通常先于正文 |
+| `delta` | 文本片段 | 正文增量 |
+| `error` | `{code, message, userTip}` | 与 `CommonResult` 同构，前端可复用处理逻辑 |
+| `done` | `{answer, mode}` | 完整答案，供前端落库或直接替换增量拼接结果 |
+
+**权限**：文档写操作（上传 / 删除 / 重建索引）限 `ADMIN` 与 `CRAFT_ENGINEER`；
+文档查询、问答、图谱登录即可。理由：普通操作工误删共享知识库内容的代价很高，
+但查阅知识库是正常业务需求。
+
+**测试**：RAG 模块共 92 个用例全部通过（P4 的原 4 个测试类 + P5 新增 6 个）。
+新增覆盖：
+
+- `RagQueryModeTest`：校验 VO 上的 `@Pattern` 字面量与枚举取值一致——
+  `@Pattern` 要求编译期常量，无法引用枚举，只能靠测试守住一致性。
+- `RagStreamClientTest`：NDJSON 三类行识别、租户前缀、非法租户不发请求。
+- `RagDocumentControllerTest` / `RagQueryControllerTest` / `RagGraphControllerTest`：
+  扩展名白名单、非 UTF-8 拒收、非法 `mode`、`maxDepth` 上限、SSE 媒体类型。
+- `RagDocumentServiceImplTest` / `RagQueryServiceImplTest`：租户来自 Resolver、
+  流式问答在返回前解析租户（解析失败立即抛出而非静默建连）。
+
+**Postman**：`postman_collection.json` 追加「5. RAG 知识库（多租户隔离验证）」
+目录，7 个请求覆盖登录 → 上传 → 列表 → 问答 → 流式 → 图谱 → 删除，
+并新增 `baseUrl` / `tokenA` / `tokenB` / `ragDocId` 四个集合变量。
+
+### 子代理审查与修复（P5 收尾）
+
+用三个只读子代理（代码质量 / 安全 / 执行流）审查后，发现**四处与上游协议的硬性不匹配**——
+这些 bug 在纯单测里全部漏检，因为原测试只断言了 URL 与方法，没有断言请求体字段名。
+
+| 问题 | 事实依据 | 后果 | 修复 |
+| --- | --- | --- | --- |
+| 上传字段写成 `description` | `InsertTextRequest` 只有 `text` / `file_source` / `chunking` | `file_source` 为空 → 上游 400，上传 100% 失败 | 改用 `file_source`，参数更名 `fileSource` 并注明它是文档身份 |
+| 列表用了 GET | 上游 `/documents/paginated` 是 **POST**，分页参数在 JSON body | 405，文档列表 100% 失败 | 改为 POST + body（`page`/`page_size`/`sort_field`/`sort_direction`） |
+| 图谱按扁平字段解析 | `KnowledgeGraphNode{id, labels[], properties{entity_type}}`；`KnowledgeGraphEdge{properties{weight,description}}` | 节点名/类型/权重全为 null，前端画不出图 | 按嵌套结构解析，并透出 `is_truncated` |
+| 引用片段永远为空 | ① 未传 `include_chunk_content` 上游只返回文件路径；② `content` 是 **List[str]** 而不是字符串 | `contexts` 恒为 `[]`，引用标注形同虚设 | 请求加 `include_chunk_content: true`；`referenceText` 按数组拼接 |
+
+另外修正的语义偏差：
+
+1. **`reprocess_failed` 不接受文档级过滤**——原实现传 `doc_ids` 被上游直接丢弃，
+   用户点「重建文档 A」实际会重跑该租户全部失败文档。接口改为
+   `POST /api/rag/documents/reprocess-failed`（无请求体），删除 `RagReindexReqVO`，并在注释中写清限制。
+2. **上传返回的是 `track_id` 而非文档主键**——原代码优先取 `track_id` 却声明为「文档标识」，
+   前端拿它去删除会落空。现只取 `track_id` 并在契约注释中正名。
+3. **删除/重处理必须看响应体**——上游 200 也可能带 `status: "busy"`（流水线忙，未执行）。
+   改为校验响应体状态，否则前端提示成功、刷新后文档还在。
+4. **4xx 不再一律报成 C 类**——409（同名冲突）、400/422（问题过短、来源非法）、429（限流）
+   分别映射为 A 类错误码，避免用户输入错误显示成「知识库处理失败」并误导运维查上游。
+
+SSE 链路的正确性修复：
+
+- `sendEvent` 原来吞掉所有异常 → 前端断开后读取线程仍把整条上游流读完；
+  现在只吞 `IllegalStateException`（emitter 已终态），IO 失败上抛以中止读取。
+- `sendErrorThenComplete` 自身可能失败 → 改为 `try { send } finally { complete }`，保证 emitter 进终态。
+- `onTimeout` 只取消上游却没结束 emitter → 补 `emitter.complete()`。
+- **缓存命中的合并行**：上游命中 LLM 缓存时把 `references` 与完整 `response` 放在同一行，
+  原来按「一行一种类型」处理必然丢一半。现按字段存在性累积，并新增
+  `RagStreamLine.referencesAndContent`。
+- 上游 `error` 行的原因原来既不回前端（正确）也不进日志（错误）→ 补日志。
 
 ---
 

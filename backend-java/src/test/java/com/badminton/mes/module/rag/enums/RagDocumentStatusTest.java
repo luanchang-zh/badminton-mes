@@ -56,21 +56,12 @@ class RagDocumentStatusTest {
                 .isEqualTo(RagDocumentStatus.UNKNOWN);
     }
 
-    @Test
-    @DisplayName("已完成可检索，处理中与失败不可检索")
-    void shouldReportCompletion() {
-        assertThat(RagDocumentStatus.COMPLETED.isCompleted()).isTrue();
-        assertThat(RagDocumentStatus.PROCESSING.isCompleted()).isFalse();
-        assertThat(RagDocumentStatus.FAILED.isCompleted()).isFalse();
-        assertThat(RagDocumentStatus.UNKNOWN.isCompleted()).isFalse();
-    }
-
-    @Test
-    @DisplayName("已完成与失败是终态，处理中与未知不是")
-    void shouldReportTerminalState() {
-        assertThat(RagDocumentStatus.COMPLETED.isTerminal()).isTrue();
-        assertThat(RagDocumentStatus.FAILED.isTerminal()).isTrue();
-        assertThat(RagDocumentStatus.PROCESSING.isTerminal()).isFalse();
-        assertThat(RagDocumentStatus.UNKNOWN.isTerminal()).isFalse();
+    @ParameterizedTest
+    @ValueSource(strings = {"parsing", "analyzing", "preprocessed", "PARSING", " Analyzing "})
+    @DisplayName("上游解析流水线的中间态归为处理中，而不是未知")
+    void shouldTreatParsingStagesAsProcessing(String rawStatus) {
+        // 这些状态在大文件解析时会持续数分钟，归成 UNKNOWN 会让前端显示「未知」并误判为异常
+        assertThat(RagDocumentStatus.fromUpstream(rawStatus))
+                .isEqualTo(RagDocumentStatus.PROCESSING);
     }
 }

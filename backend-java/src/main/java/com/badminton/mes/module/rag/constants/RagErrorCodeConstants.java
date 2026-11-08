@@ -40,6 +40,34 @@ public final class RagErrorCodeConstants {
     public static final ErrorCode UPLOAD_TOO_LARGE =
             new ErrorCode("A0400", "上传内容超过大小上限", "文件过大，请压缩后重试");
 
+    /** 上传文件类型不在白名单内 */
+    public static final ErrorCode UPLOAD_TYPE_UNSUPPORTED =
+            new ErrorCode("A0400", "上传文件类型不支持", "只支持纯文本、Markdown 一类可解析为文本的文件");
+
+    /** 检索模式不在支持范围内 */
+    public static final ErrorCode QUERY_MODE_INVALID =
+            new ErrorCode("A0400", "不支持的检索模式", "检索模式不支持，请重新选择");
+
+    /** 上传文件读取失败，例如编码不正确或流被中断 */
+    public static final ErrorCode UPLOAD_READ_FAILED =
+            new ErrorCode("A0400", "上传文件读取失败", "文件内容无法读取，请确认是 UTF-8 文本后重试");
+
+    /** 流式问答在建立上游连接前就失败，无法再通过 SSE 事件告知前端 */
+    public static final ErrorCode STREAM_START_FAILED =
+            new ErrorCode("C0301", "流式问答启动失败", "知识库服务暂时不可用，请稍后重试");
+
+    /** 同名文档已存在，上游以 409 拒绝 */
+    public static final ErrorCode DOCUMENT_CONFLICT =
+            new ErrorCode("A0409", "同名文档已存在", "已有同名文档，请先删除原文档再上传");
+
+    /** 上游以 4xx 拒绝了请求，通常意味着入参不符合上游约束 */
+    public static final ErrorCode REQUEST_REJECTED =
+            new ErrorCode("A0400", "知识库服务拒绝了请求", "提交内容不符合知识库要求，请检查后重试");
+
+    /** 上游正在执行其他任务（流水线忙碌或限流） */
+    public static final ErrorCode UPSTREAM_BUSY =
+            new ErrorCode("A0409", "知识库正在处理其他任务", "知识库繁忙，请稍后再试");
+
     private RagErrorCodeConstants() {
     }
 }

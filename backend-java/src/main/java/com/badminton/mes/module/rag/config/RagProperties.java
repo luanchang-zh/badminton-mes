@@ -31,6 +31,12 @@ public class RagProperties {
     /** 单次上传允许的最大字节数，默认 20MB */
     private long maxUploadSize = 20L * 1024 * 1024;
 
+    /** 流式问答的读取超时；必须大于同步读取超时，模型逐字输出耗时更长 */
+    private Duration streamReadTimeout = Duration.ofMinutes(2);
+
+    /** SSE 连接的最长存活时间，超时由容器主动断开，避免半开连接长期占用线程 */
+    private Duration sseTimeout = Duration.ofMinutes(3);
+
     public String getBaseUrl() {
         return baseUrl;
     }
@@ -69,5 +75,21 @@ public class RagProperties {
 
     public void setMaxUploadSize(long maxUploadSize) {
         this.maxUploadSize = maxUploadSize;
+    }
+
+    public Duration getStreamReadTimeout() {
+        return streamReadTimeout;
+    }
+
+    public void setStreamReadTimeout(Duration streamReadTimeout) {
+        this.streamReadTimeout = streamReadTimeout;
+    }
+
+    public Duration getSseTimeout() {
+        return sseTimeout;
+    }
+
+    public void setSseTimeout(Duration sseTimeout) {
+        this.sseTimeout = sseTimeout;
     }
 }

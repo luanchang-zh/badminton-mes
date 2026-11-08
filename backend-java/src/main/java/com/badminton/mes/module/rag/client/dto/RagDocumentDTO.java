@@ -1,5 +1,7 @@
 package com.badminton.mes.module.rag.client.dto;
 
+import com.badminton.mes.module.rag.enums.RagDocumentStatus;
+
 /**
  * 上游文档的一次快照，供列表展示与状态轮询。
  *
@@ -17,5 +19,14 @@ public record RagDocumentDTO(
         String docId,
         String fileName,
         String rawStatus,
-        com.badminton.mes.module.rag.enums.RagDocumentStatus status) {
+        RagDocumentStatus status) {
+
+    /**
+     * 紧凑构造器：状态为空时归入 {@link RagDocumentStatus#UNKNOWN}。
+     *
+     * <p>上层会直接调用 {@code status.name()}，空值会让列表接口整页 500。
+     */
+    public RagDocumentDTO {
+        status = status == null ? RagDocumentStatus.UNKNOWN : status;
+    }
 }

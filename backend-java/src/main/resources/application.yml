@@ -17,6 +17,11 @@ spring:
     hibernate:
       ddl-auto: none
     open-in-view: false
+  servlet:
+    multipart:
+      # 上限略高于 mes.rag.max-upload-size，让业务层先给出友好提示而不是被容器直接拒绝
+      max-file-size: ${MES_MULTIPART_MAX_FILE_SIZE:25MB}
+      max-request-size: ${MES_MULTIPART_MAX_REQUEST_SIZE:30MB}
 
 server:
   port: ${MES_SERVER_PORT:8080}
@@ -67,3 +72,7 @@ mes:
     read-timeout: ${MES_RAG_READ_TIMEOUT:60s}
     # 单次上传允许的最大字节数，默认 20MB
     max-upload-size: ${MES_RAG_MAX_UPLOAD_SIZE:20971520}
+    # 流式问答的读取超时：模型逐字输出比整段返回慢，必须单独给足
+    stream-read-timeout: ${MES_RAG_STREAM_READ_TIMEOUT:120s}
+    # SSE 连接存活上限，须大于 stream-read-timeout，否则流还在生成就被容器断开
+    sse-timeout: ${MES_RAG_SSE_TIMEOUT:180s}

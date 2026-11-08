@@ -10,10 +10,11 @@ import java.util.List;
  *
  * @param nodes 节点列表
  * @param edges 边列表
+ * @param truncated 上游是否因节点数量上限截断了子图
  * @author 张竹灏
  * @date 2026/11/08
  */
-public record RagGraphResult(List<Node> nodes, List<Edge> edges) {
+public record RagGraphResult(List<Node> nodes, List<Edge> edges, boolean truncated) {
 
     /**
      * 紧凑构造器：null 归一化为空列表。
@@ -21,6 +22,16 @@ public record RagGraphResult(List<Node> nodes, List<Edge> edges) {
     public RagGraphResult {
         nodes = nodes == null ? List.of() : List.copyOf(nodes);
         edges = edges == null ? List.of() : List.copyOf(edges);
+    }
+
+    /**
+     * 构造未截断的子图，供测试与仅需节点边的调用方使用。
+     *
+     * @param nodes 节点列表
+     * @param edges 边列表
+     */
+    public RagGraphResult(List<Node> nodes, List<Edge> edges) {
+        this(nodes, edges, false);
     }
 
     /**

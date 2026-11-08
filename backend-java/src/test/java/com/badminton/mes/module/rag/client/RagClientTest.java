@@ -2,6 +2,7 @@ package com.badminton.mes.module.rag.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -63,16 +64,37 @@ class RagClientTest {
     }
 
     @Test
-    @DisplayName("上传请求带租户前缀与内部密钥")
+    @DisplayName("上传请求带租户前缀、内部密钥，且字段名与上游一致")
     void shouldSendUploadWithTenantPrefixAndApiKey() {
         server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/documents/text"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-API-Key", API_KEY))
+                // 上游 InsertTextRequest 只认 text / file_source；
+                // 字段名写错会被 Pydantic 静默忽略，然后以 400 拒绝，这里必须锁死
+                .andExpect(content().json("""
+                        {"text": "内容", "file_source": "report.md"}
+                        """))
                 .andRespond(withSuccess("{\"track_id\":\"doc-1\"}", MediaType.APPLICATION_JSON));
 
-        String docId = client.uploadText(TENANT, "report.md", "内容");
+        String trackId = client.uploadText(TENANT, "report.md", "内容");
 
-        assertThat(docId).isEqualTo("doc-1");
+        assertThat(trackId).isEqualTo("doc-1");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("列表请求用 POST 且分页参数在请求体里")
+    void shouldListDocumentsWithPostBody() {
+        server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/documents/paginated"))
+                // 上游该接口是 POST，用 GET 会直接 405
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"page": 1, "page_size": 200, "sort_field": "updated_at",
+                         "sort_direction": "desc"}
+                        """))
+                .andRespond(withSuccess("{\"documents\":[]}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.listDocuments(TENANT)).isEmpty();
         server.verify();
     }
 
@@ -99,9 +121,8 @@ class RagClientTest {
         String body = "{\"items\":["
                 + "{\"id\":\"d1\",\"file_path\":\"a.md\",\"status\":\"PROCESSED\"},"
                 + "{\"id\":\"d2\",\"file_path\":\"b.md\",\"status\":\"pending\"}]}";
-        server.expect(requestTo(org.hamcrest.Matchers.startsWith(
-                        BASE_URL + "/tenant/" + TENANT + "/documents/paginated")))
-                .andExpect(method(HttpMethod.GET))
+        server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/documents/paginated"))
+                .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-API-Key", API_KEY))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
@@ -154,20 +175,79 @@ class RagClientTest {
     }
 
     @Test
-    @DisplayName("问答响应拆出回答与上下文")
+    @DisplayName("问答响应拆出回答与上下文，content 为数组时按切片拼接")
     void shouldParseAnswerAndContexts() {
+        // 上游 ReferenceItem.content 是 List[str]（同一文件的多个切片），不是字符串
         String body = "{\"response\":\"答案是 42\","
-                + "\"references\":[{\"content\":\"片段一\"},{\"text\":\"片段二\"}]}";
+                + "\"references\":[{\"content\":[\"片段一\",\"片段二\"]},"
+                + "{\"file_path\":\"x.md\",\"content\":[\"片段三\"]}]}";
         server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/query"))
                 .andExpect(method(HttpMethod.POST))
+                // 不打开 include_chunk_content，上游就不返回片段正文
+                .andExpect(content().json("""
+                        {"query": "问题", "mode": "mix",
+                         "include_references": true, "include_chunk_content": true}
+                        """))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
         var result = client.query(TENANT, "问题", "mix");
 
         assertThat(result.answer()).isEqualTo("答案是 42");
-        assertThat(result.contexts()).containsExactly("片段一", "片段二");
+        assertThat(result.contexts()).containsExactly("片段一\n片段二", "片段三");
         assertThat(result.mode()).isEqualTo("mix");
         server.verify();
+    }
+
+    @Test
+    @DisplayName("图谱响应按上游嵌套结构解析：节点名在 labels、类型与权重在 properties")
+    void shouldParseNestedGraphStructure() {
+        // 上游 KnowledgeGraphNode = {id, labels: [...], properties: {entity_type, ...}}
+        // 上游 KnowledgeGraphEdge = {id, type, source, target, properties: {weight, description}}
+        // 早期实现按扁平字段读，结果节点名、类型、权重全是 null
+        String body = """
+                {"nodes":[
+                  {"id":"n1","labels":["注塑机"],"properties":{"entity_type":"设备","description":"一号机"}},
+                  {"id":"n2","labels":["点检工序"],"properties":{"entity_type":"工序"}}
+                ],
+                "edges":[
+                  {"id":"e1","type":"RELATED","source":"n1","target":"n2",
+                   "properties":{"weight":0.87,"description":"执行"}}
+                ],
+                "is_truncated":true}
+                """;
+        server.expect(requestTo(org.hamcrest.Matchers.startsWith(
+                        BASE_URL + "/tenant/" + TENANT + "/graphs")))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        var graph = client.getGraph(TENANT, "设备", 2);
+
+        assertThat(graph.nodes()).hasSize(2);
+        assertThat(graph.nodes().get(0).label()).isEqualTo("注塑机");
+        assertThat(graph.nodes().get(0).type()).isEqualTo("设备");
+        assertThat(graph.nodes().get(1).type()).isEqualTo("工序");
+        assertThat(graph.edges()).singleElement().satisfies(edge -> {
+            assertThat(edge.source()).isEqualTo("n1");
+            assertThat(edge.target()).isEqualTo("n2");
+            assertThat(edge.description()).isEqualTo("执行");
+            assertThat(edge.weight()).isEqualTo(0.87);
+        });
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("同名文档冲突按 409 翻译为用户侧错误而不是第三方故障")
+    void shouldTranslateConflictToUserError() {
+        server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/documents/text"))
+                .andRespond(org.springframework.test.web.client.response
+                        .MockRestResponseCreators.withStatus(
+                                org.springframework.http.HttpStatus.CONFLICT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"detail\":\"Document storage already contains report.md\"}"));
+
+        assertThatThrownBy(() -> client.uploadText(TENANT, "report.md", "内容"))
+                .isInstanceOf(ServiceException.class)
+                .extracting(error -> ((ServiceException) error).getErrorCode())
+                .isEqualTo(RagErrorCodeConstants.DOCUMENT_CONFLICT);
     }
 
     @Test

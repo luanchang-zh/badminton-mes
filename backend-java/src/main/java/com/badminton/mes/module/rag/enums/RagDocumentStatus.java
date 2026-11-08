@@ -30,7 +30,9 @@ public enum RagDocumentStatus {
 
     /** 上游表示「处理中」的取值 */
     private static final Set<String> PROCESSING_VALUES =
-            Set.of("pending", "processing", "queued", "running", "waiting");
+            Set.of("pending", "processing", "queued", "running", "waiting",
+                    // 上游解析流水线的中间态，缺了会被归到 UNKNOWN 显示成「未知」
+                    "parsing", "analyzing", "preprocessed");
 
     /** 上游表示「已完成」的取值 */
     private static final Set<String> COMPLETED_VALUES =
@@ -54,24 +56,6 @@ public enum RagDocumentStatus {
      */
     public String getDescription() {
         return description;
-    }
-
-    /**
-     * 是否已完成，可发起检索。
-     *
-     * @return 已完成为 true
-     */
-    public boolean isCompleted() {
-        return this == COMPLETED;
-    }
-
-    /**
-     * 是否处于终态（已完成或失败），前端可停止轮询。
-     *
-     * @return 终态为 true
-     */
-    public boolean isTerminal() {
-        return this == COMPLETED || this == FAILED;
     }
 
     /**

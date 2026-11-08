@@ -1,10 +1,9 @@
 package com.badminton.mes.module.rag.client;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.badminton.mes.module.rag.client.dto.RagDocumentDTO;
 import com.badminton.mes.module.rag.client.dto.RagGraphResult;
@@ -94,6 +93,19 @@ final class RagResponseParser {
         if (!(rawReferences instanceof List<?> references)) {
             return List.of();
         }
+        return extractReferenceTexts(references);
+    }
+
+    /**
+     * 从参考条目列表中抽取纯文本。
+     *
+     * <p>同步响应的 {@code references} 与流式响应的首行 references 结构一致，
+     * 因此两条路径共用本方法，避免各写一套字段适配。
+     *
+     * @param references 参考条目列表
+     * @return 非空文本片段，保持原顺序
+     */
+    static List<String> extractReferenceTexts(List<?> references) {
         List<String> contexts = new ArrayList<>(references.size());
         for (Object reference : references) {
             String text = referenceText(reference);
@@ -114,28 +126,23 @@ final class RagResponseParser {
         List<RagGraphResult.Node> nodes = new ArrayList<>();
         List<RagGraphResult.Edge> edges = new ArrayList<>();
         if (response == null) {
-            return new RagGraphResult(nodes, edges);
+            return new RagGraphResult(nodes, edges, false);
         }
         collectNodes(response.get("nodes"), nodes);
         collectEdges(response.get("edges"), edges);
-        return new RagGraphResult(nodes, edges);
-    }
-
-    /**
-     * 对查询参数做 URL 编码。
-     *
-     * @param value 原始值
-     * @return 编码后的值，null 转为空串
-     */
-    static String urlEncode(String value) {
-        return value == null ? "" : URLEncoder.encode(value, StandardCharsets.UTF_8);
+        // 上游按 max_nodes 截断时会置 is_truncated，必须透出，否则前端以为图谱本来就这么小
+        return new RagGraphResult(nodes, edges, Boolean.TRUE.equals(response.get("is_truncated")));
     }
 
     /**
      * 从参考条目中取出正文。
      *
+     * <p>上游的 {@code content} 是<b>字符串数组</b>（同一文件的多个切片），
+     * 且只有在请求里带 {@code include_chunk_content=true} 时才存在。
+     * 早期实现按字符串读取，导致引用永远为空，这里按数组拼接。
+     *
      * @param reference 单条参考，可能是字符串或映射
-     * @return 正文，取不到时为 null
+     * @return 正文，同一文件的多个切片按换行拼接；取不到时为 null
      */
     private static String referenceText(Object reference) {
         if (reference instanceof String text) {
@@ -144,6 +151,17 @@ final class RagResponseParser {
         if (reference instanceof Map<?, ?> map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> source = (Map<String, Object>) map;
+            Object content = source.get("content");
+            if (content instanceof List<?> chunks) {
+                String joined = chunks.stream()
+                        .filter(String.class::isInstance)
+                        .map(String.class::cast)
+                        .filter(chunk -> !chunk.isBlank())
+                        .collect(Collectors.joining("\n"));
+                if (!joined.isBlank()) {
+                    return joined;
+                }
+            }
             return stringValue(source, "content", "text", "snippet");
         }
         return null;
@@ -151,6 +169,10 @@ final class RagResponseParser {
 
     /**
      * 收集图谱节点。
+     *
+     * <p>上游节点结构是 {@code {id, labels: [...], properties: {entity_type, description}}}
+     * （见 {@code lightrag/types.py} 的 {@code KnowledgeGraphNode}）。
+     * 实体名取 {@code labels[0]}，实体类型在 {@code properties} 里，都不在顶层。
      *
      * @param rawNodes 上游节点数据
      * @param target   收集目标
@@ -160,19 +182,24 @@ final class RagResponseParser {
             return;
         }
         for (Object node : nodes) {
-            if (node instanceof Map<?, ?> map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> source = (Map<String, Object>) map;
-                target.add(new RagGraphResult.Node(
-                        stringValue(source, "id", "entity_id"),
-                        stringValue(source, "label", "entity_name", "name"),
-                        stringValue(source, "type", "entity_type")));
+            if (!(node instanceof Map<?, ?> map)) {
+                continue;
             }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) map;
+            Map<String, Object> properties = asMap(source.get("properties"));
+            target.add(new RagGraphResult.Node(
+                    stringValue(source, "id"),
+                    firstLabel(source.get("labels"), stringValue(properties, "entity_id")),
+                    stringValue(properties, "entity_type", "type")));
         }
     }
 
     /**
      * 收集图谱边。
+     *
+     * <p>边结构是 {@code {id, type, source, target, properties: {weight, description}}}：
+     * 权重与关系描述都在 {@code properties} 里。
      *
      * @param rawEdges 上游边数据
      * @param target   收集目标
@@ -182,16 +209,51 @@ final class RagResponseParser {
             return;
         }
         for (Object edge : edges) {
-            if (edge instanceof Map<?, ?> map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> source = (Map<String, Object>) map;
-                Object weight = source.get("weight");
-                target.add(new RagGraphResult.Edge(
-                        stringValue(source, "source", "source_id"),
-                        stringValue(source, "target", "target_id"),
-                        stringValue(source, "description", "label"),
-                        weight instanceof Number number ? number.doubleValue() : null));
+            if (!(edge instanceof Map<?, ?> map)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) map;
+            Map<String, Object> properties = asMap(source.get("properties"));
+            Object weight = properties.get("weight");
+            target.add(new RagGraphResult.Edge(
+                    stringValue(source, "source", "source_id"),
+                    stringValue(source, "target", "target_id"),
+                    stringValue(properties, "description", "keywords"),
+                    weight instanceof Number number ? number.doubleValue() : null));
+        }
+    }
+
+    /**
+     * 取 {@code labels} 数组的第一个元素作为实体名。
+     *
+     * @param rawLabels  上游 labels 字段
+     * @param fallback   取不到时的兜底值
+     * @return 实体名
+     */
+    private static String firstLabel(Object rawLabels, String fallback) {
+        if (rawLabels instanceof List<?> labels) {
+            for (Object label : labels) {
+                if (label instanceof String text && !text.isBlank()) {
+                    return text;
+                }
             }
         }
+        return fallback;
+    }
+
+    /**
+     * 把嵌套对象转成映射，非映射结构返回空映射。
+     *
+     * @param raw 原始值
+     * @return 映射，永不为 null
+     */
+    private static Map<String, Object> asMap(Object raw) {
+        if (raw instanceof Map<?, ?> map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) map;
+            return source;
+        }
+        return Map.of();
     }
 }
