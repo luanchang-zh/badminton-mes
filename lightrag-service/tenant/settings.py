@@ -20,6 +20,14 @@ DEFAULT_VECTOR_STORAGE = "PGVectorStorage"
 DEFAULT_DOC_STATUS_STORAGE = "PGDocStatusStorage"
 DEFAULT_GRAPH_STORAGE = "Neo4JStorage"
 
+# 只允许绑定回环地址：内部服务不应暴露到局域网。
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 9621
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+# 上游默认白名单；保持与 v1.5.7 一致，租户前缀不在其中。
+DEFAULT_WHITELIST_PATHS = "/health,/api/*"
+
 # 服务目录：lightrag-service/，用于把相对路径解析成绝对路径。
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,6 +57,14 @@ def _read_path(environ: Mapping[str, str], name: str, default: str) -> Path:
     return candidate.resolve()
 
 
+def _read_bool(environ: Mapping[str, str], name: str, default: bool) -> bool:
+    """读取布尔配置，接受常见的真值写法，其余非空值按假处理。"""
+    raw_value = (environ.get(name) or "").strip().lower()
+    if not raw_value:
+        return default
+    return raw_value in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class ServiceSettings:
     """多租户服务的全部可配置项。
@@ -75,12 +91,24 @@ class ServiceSettings:
     top_k: int
     max_pending_documents: int
     max_parallel_insert: int
+    host: str
+    port: int
+    internal_api_key: str | None
+    llm_concurrency: int | None
+    enable_api_docs: bool
+    whitelist_paths: str
+
+    @property
+    def binds_loopback_only(self) -> bool:
+        """是否只监听回环地址；非回环监听会要求必须配置内部密钥。"""
+        return self.host.strip().lower() in LOOPBACK_HOSTS
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "ServiceSettings":
         """从环境变量构造配置；缺省值面向本地开发，不包含任何密钥。"""
         source = os.environ if environ is None else environ
         embedding_dim = _read_int(source, "LR_EMBEDDING_DIM", 0)
+        llm_concurrency = _read_int(source, "LR_LLM_CONCURRENCY", 0)
         return cls(
             input_base_dir=_read_path(source, "LR_INPUT_DIR", DEFAULT_INPUT_DIR),
             working_base_dir=_read_path(
@@ -110,6 +138,13 @@ class ServiceSettings:
             top_k=_read_int(source, "LR_TOP_K", 60),
             max_pending_documents=_read_int(source, "LR_MAX_PENDING_DOCUMENTS", 0),
             max_parallel_insert=_read_int(source, "LR_MAX_PARALLEL_INSERT", 2),
+            host=_read_text(source, "LR_HOST", DEFAULT_HOST),
+            port=_read_int(source, "LR_PORT", DEFAULT_PORT),
+            internal_api_key=_read_text(source, "LR_INTERNAL_API_KEY", "") or None,
+            # 0 表示不限制并发：退化为直通，不引入额外等待。
+            llm_concurrency=llm_concurrency or None,
+            enable_api_docs=_read_bool(source, "LR_ENABLE_API_DOCS", False),
+            whitelist_paths=_read_text(source, "WHITELIST_PATHS", DEFAULT_WHITELIST_PATHS),
         )
 
     def missing_model_settings(self) -> list[str]:

@@ -8,8 +8,8 @@
 
 | 阶段 | 名称 | 所在位置 | 主要产出 | 依赖 |
 | --- | --- | --- | --- | --- |
-| P1 | 多租户骨架：配置、注册表与启动校验 | `lightrag-service/` | `tenants.yaml`、`TenantRegistry`、校验器，以及对应单测 | 无 |
-| P2 | 多实例服务入口：路由、生命周期、限流与鉴权 | `lightrag-service/` | `multi_tenant_server.py`，Swagger 中有两组前缀路由 | P1 |
+| P1 | 多租户骨架：配置、注册表与启动校验 | `lightrag-service/` | `tenants.yaml`、`TenantRegistry`、校验器、编排文件，以及 51 项单测 | 无 ✅ 已完成 |
+| P2 | 多实例服务入口：路由、生命周期、限流与鉴权 | `lightrag-service/tenant/` | `server.py` 启动入口，`--print-routes` 输出两组前缀路由（各 33 条） | P1 ✅ 已完成 |
 | P3 | 隔离验证脚本 | `lightrag-service/scripts/` | `verify_isolation.py`，覆盖 5 类场景 | P2 |
 | P4 | Java RAG 模块：租户映射与 RagClient | `backend-java` | 数据表、映射服务、`RagClient`，以及对应单测 | 只依赖 P2 的接口约定 |
 | P5 | Java RAG 接口：业务 API、SSE 流式输出与权限 | `backend-java` | `RagController`、Postman 用例 | P4 |
@@ -21,17 +21,23 @@ P4 只依赖 LightRAG 的接口约定，可以和 P3 并行开发。按方案要
 ```text
 badminton-mes/
 ├── lightrag-service/
-│   ├── LightRAG/                       # fork，固定在 v1.5.7，尽量不改动
+│   ├── LightRAG/                       # vendored v1.5.7，已删除原 .git
 │   ├── config/tenants.yaml
 │   ├── tenant/
-│   │   ├── config.py                   # 加载 YAML，定义 TenantConfig
-│   │   ├── registry.py                 # TenantContext / TenantRegistry
-│   │   ├── validator.py                # 启动时的隔离校验
-│   │   ├── llm_limiter.py              # 全局 Semaphore 包装 LLM 调用
-│   │   └── auth.py                     # 内部 API Key 校验
-│   ├── multi_tenant_server.py          # 新的启动入口
-│   ├── scripts/verify_isolation.py
+│   │   ├── settings.py                 # ✅ 环境变量收口
+│   │   ├── config.py                   # ✅ 加载 YAML，定义 TenantConfig
+│   │   ├── validator.py                # ✅ 启动时的隔离校验
+│   │   ├── factory.py                  # ✅ LLM / Embedding / LightRAG 构造
+│   │   ├── registry.py                 # ✅ TenantContext / TenantRegistry
+│   │   ├── check.py                    # ✅ 自检 CLI
+│   │   ├── server.py                   # P2 启动入口
+│   │   ├── app.py                      # P2 应用构建与路由注册
+│   │   ├── lifespan.py                 # P2 统一生命周期
+│   │   ├── llm_limiter.py              # P2 全局 Semaphore
+│   │   └── auth.py                     # P2 内部 API Key 校验
+│   ├── scripts/verify_isolation.py     # P3
 │   ├── tests/                          # pytest 单测
+│   ├── docker-compose.yml              # ✅ PostgreSQL + pgvector、Neo4j + APOC
 │   ├── .env.example
 │   └── requirements.txt
 └── backend-java/src/main/java/com/badminton/mes/module/rag/
@@ -85,39 +91,64 @@ badminton-mes/
 
 ## P2：多实例服务入口——路由、生命周期、限流与鉴权
 
-**目标**：`python multi_tenant_server.py` 能够启动，Swagger（`/docs`）中显示 `/tenant/user_1/*` 和 `/tenant/user_2/*` 两组路由。
+**目标**：交付 `python -m tenant.server` 启动入口。应用构建阶段按租户注册 `/tenant/{user_id}` 前缀路由，
+`--print-routes` 能在不连数据库、不调模型的前提下打印完整的租户路由表；真实启动后 Swagger 显示
+`/tenant/user_1/*` 与 `/tenant/user_2/*` 两组路由。
+
+### 源码核查结论（v1.5.7，动手前已确认）
+
+| 结论 | 证据位置 | 对实现的影响 |
+| --- | --- | --- |
+| 三个路由工厂签名固定 | `create_document_routes(rag, doc_manager, api_key=None)`、`create_query_routes(rag, api_key=None, top_k=60)`、`create_graph_routes(rag, api_key=None)` | 直接参数化复用，无需改官方文件 |
+| 单租户路由数量：文档 18 + 查询 3 + 图谱 12 = 33 | `document_routes.py:4397`、`query_routes.py:367`、`graph_routes.py:161` 内的 `@router.*` | 「各组数量一致」是可断言的验收点 |
+| `pipeline_status` 已按 workspace 隔离 | `lightrag.py:1608-1610` 在 `initialize_storages()` 内部调用 `initialize_pipeline_status(workspace=self.workspace)` | 不需要在入口层再包一层隔离 |
+| 后台任务集合是**全应用共享**的 | `document_routes.py:2079-2092` `get_managed_background_tasks` 返回 `request.app.state.background_tasks` | 关闭时只能整体 drain 一次，不能按租户分开 drain；先 drain 再逐个 `finalize_storages()` |
+| 鉴权白名单在模块导入时就固化 | `utils_api.py:242-254` 用 `global_args.whitelist_paths` 编译 `whitelist_patterns`；默认 `/health,/api/*` | `/tenant/...` 不匹配默认白名单，因此天然要求凭证；**禁止**把 `WHITELIST_PATHS` 设成 `/*` |
+| `global_args` 是首次访问即初始化的代理 | `config.py:1059-1113` `_GlobalArgsProxy` → `get_config()` → `initialize_config()` → `parse_args()` | **导入路由模块会触发 argparse**。入口必须先把 `sys.argv` 换成受控参数并 `initialize_config(force=True)`，再导入 `lightrag.api.routers.*`，否则会被 argparse 抢走命令行并可能直接退出 |
 
 ### 任务
 
-1. **路由注册**（只在应用构建阶段进行）：
+1. **`tenant/server.py`（启动入口）**
+   - 解析自己的参数（`--config`、`--host`、`--port`、`--print-routes`、`--docs/--no-docs`）。
+   - 在导入任何 `lightrag.api.*` 之前，构造受控 argv 并 `initialize_config(force=True)`，把
+     `working_dir` / `input_dir` / `kv_storage` / `vector_storage` / `graph_storage` /
+     `doc_status_storage` / `top_k` / `max_pending_documents` 一次设好。
+   - 复用 P1 的 `load_tenants()` + `validate_tenants()`：校验失败直接退出，不进入路由注册。
+   - `--print-routes` 只构建 app 并打印路由表，不启动 uvicorn、不执行 lifespan。
+2. **`tenant/app.py`（应用构建）**
+   - 用 `assemble_registry()` 装配各租户上下文，循环 `include_router(..., prefix=f"/tenant/{user_id}")`。
+   - 三个工厂的 `api_key` 统一传内部密钥；tag 前置 `user_id`，便于 Swagger 分组。
+   - 构建阶段只注册路由，绝不响应后再改路由表。
+3. **`tenant/lifespan.py`（统一生命周期）**
+   - 启动：创建唯一的 `app.state.background_tasks` 集合 → 逐个 `initialize_storages()`
+     → 逐个 `check_and_migrate_data()`；任一失败即中止启动并按逆序 `finalize_storages()` 回滚。
+   - 关闭：`drain_reserved_background_tasks(app.state.background_tasks)`（带超时）
+     → 逐个 `finalize_storages()` → **最后只调用一次** `finalize_share_data()`。
+4. **`tenant/llm_limiter.py`（全局模型并发上限）**
+   - `asyncio.Semaphore(LR_LLM_CONCURRENCY)` 包住 `llm_model_func` 与 `embedding_func`，
+     所有租户共用同一个信号量，在模型调用层限流而不是在上传接口上限流。
+   - 未设置并发上限时退化为直通包装，不改变语义。
+5. **`tenant/auth.py`（内部鉴权）**
+   - 内部密钥走 `LR_INTERNAL_API_KEY`，作为 `api_key` 传给三个工厂（对应 `X-API-Key`）。
+   - 服务默认只监听 `127.0.0.1`；非回环地址且未配密钥时**拒绝启动**。
+   - `/docs` 由开关控制，默认关闭。
+6. **容量控制**：`LR_MAX_PENDING_DOCUMENTS` 逐个实例生效，`--print-routes` 时一并打印各租户容量。
+7. **文档**：把启动、`--print-routes`、内部密钥与端口约定写进 `lightrag-service/README.md`。
 
-   ```python
-   for user_id, ctx in registry.all():
-       prefix = f"/tenant/{user_id}"
-       app.include_router(create_document_routes(ctx.rag, ctx.doc_manager, api_key), prefix=prefix)
-       app.include_router(create_query_routes(ctx.rag, api_key, args.top_k), prefix=prefix)
-       app.include_router(create_graph_routes(ctx.rag, api_key), prefix=prefix)
-   ```
+### 单测（pytest，仍不连数据库、不调模型）
 
-   需要先阅读 v1.5.7 中 `lightrag_server.py` 的 `create_app`，确认路由工厂的签名和 tag 写法；可以给 tag 加上 user 前缀，方便在 Swagger 中区分。
-2. **lifespan 统一生命周期**：
-   - 启动：初始化共享状态（只做一次），然后逐个调用 `initialize_storages()`（如果该版本需要，再调用 `initialize_pipeline_status`）；任何一个失败都中止启动。
-   - 关闭：停止接收新任务，等待各租户的后台索引任务结束（设置超时，超时后安全取消），再逐个调用 `finalize_storages()`，最后只清理一次共享状态。
-   - **重点核查**：官方 pipeline status 和后台任务的存放位置是否按 workspace 区分；如果是全局唯一的，需要在入口层按租户做隔离。
-3. **`tenant/llm_limiter.py`**：用 `asyncio.Semaphore(LLM_GLOBAL_CONCURRENCY)` 包装所有租户共用的 `llm_model_func` / `embedding_func`。在模型调用层限流，而不是在上传接口上限流。
-4. **容量控制**：通过 `.env` 配置 `MAX_PENDING_DOCUMENTS`，确认每个实例各自生效。
-5. **内部鉴权 `tenant/auth.py`**：所有租户路由都校验 `X-API-Key == LIGHTRAG_INTERNAL_API_KEY`，优先复用官方的 `api_key` 参数；服务只监听内网地址或 `127.0.0.1`；`/docs` 是否开放由开关控制。
-6. 将启动命令写入 `lightrag-service/README.md`。
-
-### 单测
-
-- 用 mock 的 rag 构建 app，断言 `app.routes` 中两组前缀路由都存在且数量一致。
-- 不带 Key 或 Key 错误时返回 401/403，Key 正确时放行（使用 FastAPI `TestClient`）。
-- 并发调用超过上限时，用 Semaphore 包装后的函数同时执行的数量不超过设定值。
+- **路由注册**：用替身 `rag` / `doc_manager` 构建 app，断言每个租户前缀下都有 33 条路由，
+  且各租户路由数量一致；断言不存在未加前缀的 `/documents/upload`、`/query`、`/graphs`。
+- **鉴权**：`TestClient` 不带 Key / 带错误 Key 时返回 401 或 403；带正确 Key 时**不是** 401/403。
+- **生命周期**：替身实例记录调用序列，断言每个实例 `initialize_storages` 恰好一次、
+  `finalize_storages` 恰好一次、`finalize_share_data` 恰好一次，且 finalize 发生在 drain 之后。
+- **限流**：并发发起 N+M 次包装后的调用，断言同时在执行的峰值不超过上限。
+- **启动校验**：非法租户配置（重复 workspace、设置 `POSTGRES_WORKSPACE` 等）时，构建阶段即失败。
 
 ### 完成标准
 
-服务能启动，Swagger 可以看到两组路由；单测全部通过。
+`python -m tenant.server --print-routes` 打印出 2 组、各 33 条带前缀路由；
+`pytest` 全绿；真实启动与跨租户隔离验证留给 P3。
 
 ---
 
@@ -223,8 +254,13 @@ badminton-mes/
 
 | 风险 | 等级 | 处理方式 |
 | --- | --- | --- |
-| v1.5.7 的 pipeline status 或后台任务是全局单例，多实例共用会导致状态串扰 | 🔴 | 在 P2 中先读源码确认；如果确实如此，就在入口层按 workspace 隔离，P3 的 S3 专门验证 |
-| 全局 `*_WORKSPACE` 环境变量覆盖了实例配置 | 🟡 | 在 P1 的校验器中拦截 |
+| 全局 `*_WORKSPACE` 环境变量覆盖了实例配置 | 🟡 | ✅ P1 已在校验器中拦截，三项变量命中即拒绝启动 |
 | Neo4j 的 Label 隔离只是应用层隔离 | 🟡 | Neo4j 不对外暴露，只允许 LightRAG 服务连接 |
-| 多租户同时索引，耗尽模型配额 | 🟡 | 在 P2 中用全局 Semaphore 加 `MAX_PENDING_DOCUMENTS` 限制 |
+| 后台任务集合是全应用共享的（已核实） | 🟡 | P2 关闭时整体 drain 一次再逐个 finalize，不做按租户拆分 |
+| 导入路由模块会触发 argparse（已核实） | 🔴 | P2 入口必须在导入 `lightrag.api.*` 之前固定 `sys.argv` 并 `initialize_config(force=True)` |
+| `WHITELIST_PATHS` 被误设为 `/*` 会让租户路由免鉴权 | 🔴 | P2 启动时校验白名单，包含 `/*` 直接拒绝启动 |
+| 多租户同时索引，耗尽模型配额 | 🟡 | P2 用全局 Semaphore 加 `MAX_PENDING_DOCUMENTS` 限制 |
 | Spring Boot 4 下 SSE 转发的依赖选型 | 🟢 | 在 P4 中优先使用不新增依赖的方案 |
+
+> v1.5.7 的 `pipeline_status` 已确认按 workspace 隔离（`initialize_storages()` 内部按 `self.workspace` 初始化），
+> 原 🔴 风险降级为已解决。

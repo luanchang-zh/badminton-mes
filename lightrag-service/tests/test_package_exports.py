@@ -10,8 +10,12 @@ import tenant.validator
 
 
 def test_public_symbols_are_reexported() -> None:
-    """brief 约定的公开类型都出现在 __all__ 中，且确实可访问。"""
-    expected = {
+    """P1 约定的公开类型必须始终存在于 __all__ 中，且确实可访问。
+
+    后续阶段会继续往包里加符号，因此这里只断言「至少包含」，
+    避免每加一个出口就重伤这份契约测试。
+    """
+    required = {
         "DEFAULT_TENANTS_FILE",
         "ServiceSettings",
         "TenantConfig",
@@ -28,8 +32,8 @@ def test_public_symbols_are_reexported() -> None:
         "validate_tenants",
     }
 
-    assert set(tenant.__all__) == expected
-    for name in expected:
+    assert required <= set(tenant.__all__)
+    for name in required:
         assert hasattr(tenant, name), f"tenant 缺少公开符号 {name}"
 
 

@@ -1,0 +1,7 @@
+schema: comet.native.delta.v1
+capability: rag-multitenant-foundation
+base_hash: 9dd46cb7cefc4a17f21257cab7a0360b5d49f150d97e9017d9898e7a051cdb45
+base_version: 1
+legacy_hash: df8bcdfeff1915f15317fef60cd3742731a62680dc4a4c174c3eb3775d8f57aa
+base_requirements: {}
+operations: []

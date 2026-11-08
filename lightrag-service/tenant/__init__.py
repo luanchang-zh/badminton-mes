@@ -12,7 +12,22 @@ from tenant.config import (
     TenantConfigError,
     load_tenants,
 )
-from tenant.factory import build_doc_manager, build_embedding_func, build_llm_func, build_rag
+from tenant.app import (
+    ROUTES_PER_TENANT,
+    build_app,
+    collect_tenant_routes,
+    register_tenant_routes,
+)
+from tenant.auth import SecurityConfigError, validate_security_settings
+from tenant.factory import (
+    build_doc_manager,
+    build_embedding_func,
+    build_llm_func,
+    build_rag,
+    get_shared_limiter,
+)
+from tenant.lifespan import DEFAULT_SHUTDOWN_TIMEOUT_SECONDS, build_lifespan
+from tenant.llm_limiter import ModelConcurrencyLimiter
 from tenant.registry import (
     TenantContext,
     TenantRegistry,
@@ -24,6 +39,10 @@ from tenant.validator import validate_tenants
 
 __all__ = [
     "DEFAULT_TENANTS_FILE",
+    "DEFAULT_SHUTDOWN_TIMEOUT_SECONDS",
+    "ModelConcurrencyLimiter",
+    "ROUTES_PER_TENANT",
+    "SecurityConfigError",
     "ServiceSettings",
     "TenantConfig",
     "TenantConfigError",
@@ -31,10 +50,16 @@ __all__ = [
     "TenantRegistry",
     "UnknownTenantError",
     "assemble_registry",
+    "build_app",
     "build_doc_manager",
     "build_embedding_func",
+    "build_lifespan",
     "build_llm_func",
     "build_rag",
+    "collect_tenant_routes",
+    "get_shared_limiter",
     "load_tenants",
+    "register_tenant_routes",
+    "validate_security_settings",
     "validate_tenants",
 ]

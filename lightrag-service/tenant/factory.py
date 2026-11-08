@@ -9,9 +9,30 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+from tenant.llm_limiter import ModelConcurrencyLimiter
 from tenant.settings import ServiceSettings
 
 LlmFunc = Callable[..., Any]
+
+# 进程内共享的模型并发限制器：所有租户实例共用同一个，先创建后复用。
+_shared_limiter: ModelConcurrencyLimiter | None = None
+
+
+def get_shared_limiter(limit: int | None = None) -> ModelConcurrencyLimiter:
+    """返回进程内共享的模型并发限制器。
+
+    各租户实例必须共用同一个信号量，否则每个租户各限一份，整体配额仍会被打满。
+    """
+    global _shared_limiter
+    if _shared_limiter is None:
+        _shared_limiter = ModelConcurrencyLimiter(limit)
+    return _shared_limiter
+
+
+def reset_shared_limiter() -> None:
+    """重置共享限制器；仅用于单测隔离。"""
+    global _shared_limiter
+    _shared_limiter = None
 
 
 def build_llm_func(settings: ServiceSettings) -> LlmFunc:
@@ -27,12 +48,13 @@ def build_llm_func(settings: ServiceSettings) -> LlmFunc:
 
     from lightrag.llm.openai import openai_complete_if_cache
 
-    return partial(
+    raw_complete = partial(
         openai_complete_if_cache,
         settings.llm_model,
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
     )
+    return get_shared_limiter(settings.llm_concurrency).wrap(raw_complete)
 
 
 def build_embedding_func(settings: ServiceSettings) -> Any:
@@ -51,7 +73,7 @@ def build_embedding_func(settings: ServiceSettings) -> Any:
     from lightrag.llm.openai import openai_embed
     from lightrag.utils import EmbeddingFunc
 
-    embedding_callable = partial(
+    raw_embedding = partial(
         openai_embed,
         model=settings.embedding_model,
         base_url=settings.embedding_base_url,
@@ -60,7 +82,7 @@ def build_embedding_func(settings: ServiceSettings) -> Any:
     return EmbeddingFunc(
         embedding_dim=settings.embedding_dim,
         max_token_size=settings.embedding_max_token_size,
-        func=embedding_callable,
+        func=get_shared_limiter(settings.llm_concurrency).wrap(raw_embedding),
     )
 
 

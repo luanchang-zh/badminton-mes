@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+from typing import Iterator
 
 import pytest
+
+# P2：官方路由工厂需要 vendored 源码在导入路径上。
+VENDORED_ROOT = Path(__file__).resolve().parents[1] / "LightRAG"
+if str(VENDORED_ROOT) not in sys.path:
+    sys.path.insert(0, str(VENDORED_ROOT))
 
 from tenant.config import TenantConfig
 from tenant.settings import ServiceSettings
@@ -40,3 +47,43 @@ def two_tenants(base_settings: ServiceSettings) -> list[TenantConfig]:
         make_tenant("user_1", "ws_001", base_settings),
         make_tenant("user_2", "ws_002", base_settings),
     ]
+
+# ============================================================================
+# P2 夹具
+# ============================================================================
+
+@pytest.fixture
+def p2_settings(tmp_path: Path) -> ServiceSettings:
+    """P2 测试配置：回环地址、固定内部密钥、有限并发。"""
+    return ServiceSettings.from_env(
+        {
+            "LR_INPUT_DIR": str(tmp_path / "inputs"),
+            "LR_WORKING_DIR": str(tmp_path / "rag_storage"),
+            "LR_INTERNAL_API_KEY": "test-internal-key",
+            "LR_LLM_CONCURRENCY": "3",
+            "LR_HOST": "127.0.0.1",
+            "LR_PORT": "9621",
+        }
+    )
+
+
+@pytest.fixture
+def p2_tenants(p2_settings: ServiceSettings) -> list[TenantConfig]:
+    """两个演示租户。"""
+    return [
+        make_tenant("user_1", "ws_001", p2_settings),
+        make_tenant("user_2", "ws_002", p2_settings),
+    ]
+
+
+@pytest.fixture
+def prepared_upstream() -> Iterator[None]:
+    """初始化上游全局配置，使官方路由工厂可被导入。
+
+    上游配置代理首次访问会解析 ``sys.argv``，因此测试里也固定一次，
+    避免 pytest 自身的参数被上游 argparse 解析。
+    """
+    from tenant.server import prepare_upstream_config
+
+    prepare_upstream_config(ServiceSettings.from_env({}))
+    yield
