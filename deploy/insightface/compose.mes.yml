@@ -1,0 +1,26 @@
+# 叠加在官方 InsightFace Server 的 server/deploy/compose.cpu.yml 之上使用，不复制其构建过程。
+#
+# 作用：
+#   1. 宿主机端口只绑定 127.0.0.1，局域网访问不到；MES 后端走 mes-face 网络，不经宿主机端口。
+#   2. 把官方 server 服务接入 MES 共用的 mes-face 网络，别名 insightface。
+#
+# 在 InsightFace 仓库根目录执行（mes-face 网络需已用 docker network create mes-face 创建）：
+#   export INSIGHTFACE_AUTH_ENABLED=true
+#   export INSIGHTFACE_API_KEY='足够长的随机密钥'   # 与 MES 的 MES_INSIGHTFACE_API_KEY 一致
+#   docker compose -f server/deploy/compose.cpu.yml \
+#     -f <MES 仓库>/deploy/insightface/compose.mes.yml up -d
+#
+# !override 需要 Docker Compose 2.24.4 及以上；不加时 Compose 会合并端口列表，
+# 官方的 18097:8080 映射仍会对所有网卡开放。
+services:
+  server:
+    ports: !override
+      - "127.0.0.1:18097:8080"
+    networks:
+      default: {}
+      mes-face:
+        aliases: [insightface]
+
+networks:
+  mes-face:
+    external: true

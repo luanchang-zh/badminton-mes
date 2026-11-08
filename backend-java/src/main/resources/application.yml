@@ -17,9 +17,23 @@ spring:
     hibernate:
       ddl-auto: none
     open-in-view: false
+  servlet:
+    multipart:
+      # Spring 默认单文件 1MB；人脸照片单张上限 5MB，总量覆盖一次上传 3 张。
+      # max-request-size 与 frontend-web/nginx.conf 的 client_max_body_size 保持一致
+      max-file-size: 5MB
+      max-request-size: 16MB
 
 server:
   port: ${MES_SERVER_PORT:8080}
+  # 来源 IP 取 Nginx 用 $remote_addr 覆盖写入的 X-Real-IP，浏览器无法伪造；
+  # 不用 X-Forwarded-For，因为它会保留浏览器自带的值，私网演示环境下会被当作可信代理链采信
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      remote-ip-header: X-Real-IP
+    # 上传超限后 Tomcat 默认只吞掉 2MB 剩余请求体，超出直接断开连接，前端拿不到 JSON 错误
+    max-swallow-size: 20MB
 
 mes:
   security:

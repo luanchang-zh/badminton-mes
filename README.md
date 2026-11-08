@@ -3,6 +3,7 @@
 在已安装 Docker Desktop 的环境执行：
 
 ```powershell
+docker network create mes-face   # 只需首次执行一次，供后端与 InsightFace 人脸服务互通
 docker compose up -d --build
 ```
 

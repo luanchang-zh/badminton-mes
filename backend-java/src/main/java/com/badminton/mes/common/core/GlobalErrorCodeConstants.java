@@ -22,6 +22,10 @@ public final class GlobalErrorCodeConstants {
     public static final ErrorCode JSON_PARSE_ERROR =
             new ErrorCode("A0427", "请求 JSON 解析失败", "请求格式错误，请检查提交内容");
 
+    /** 用户上传文件超出大小限制(附表 3 A0702)：单个文件或单次请求总量超过 multipart 配置 */
+    public static final ErrorCode UPLOAD_FILE_TOO_LARGE =
+            new ErrorCode("A0702", "用户上传文件太大", "文件过大，单张不超过 5MB，单次合计不超过 16MB");
+
     /** 用户登录已过期(附表 3 A0230)：未携带 token 或会话失效，HTTP 映射 401 */
     public static final ErrorCode UNAUTHORIZED =
             new ErrorCode("A0230", "用户登录已过期", "登录状态已失效，请重新登录");

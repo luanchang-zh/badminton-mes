@@ -16,6 +16,9 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import jakarta.validation.ConstraintViolationException;
 
@@ -92,6 +95,49 @@ public class GlobalExceptionHandler {
             MissingServletRequestParameterException exception) {
         String detail = exception.getParameterName() + ": 必填查询参数不能为空";
         logger.warn("[查询参数缺失] {}", detail);
+        return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, detail);
+    }
+
+    /**
+     * 处理上传文件超出 multipart 大小限制。
+     *
+     * <p>该异常在 DispatcherServlet 解析 multipart 时抛出，早于登录拦截器，
+     * 因此未登录请求上传超大文件也返回 A0702 而不是 A0230。
+     *
+     * @param exception 上传大小超限异常
+     * @return A0702 文件过大响应
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<CommonResult<Void>> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException exception) {
+        logger.warn("[上传文件超限] {}", exception.getMessage());
+        return buildResponse(GlobalErrorCodeConstants.UPLOAD_FILE_TOO_LARGE,
+                GlobalErrorCodeConstants.UPLOAD_FILE_TOO_LARGE.message());
+    }
+
+    /**
+     * 处理 multipart 请求体无法解析，例如接口要求上传文件但请求不是 multipart/form-data。
+     *
+     * @param exception multipart 解析异常
+     * @return A0400 参数错误响应
+     */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<CommonResult<Void>> handleMultipartException(MultipartException exception) {
+        logger.warn("[multipart 解析失败] {}", exception.getMessage());
+        return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, "请求不是合法的 multipart/form-data");
+    }
+
+    /**
+     * 处理 multipart 请求中缺少必填的文件字段。
+     *
+     * @param exception 缺少请求部件异常
+     * @return A0400 参数错误响应
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<CommonResult<Void>> handleMissingServletRequestPartException(
+            MissingServletRequestPartException exception) {
+        String detail = exception.getRequestPartName() + ": 必填上传字段不能为空";
+        logger.warn("[上传字段缺失] {}", detail);
         return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, detail);
     }
 

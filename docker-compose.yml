@@ -2,9 +2,12 @@
 # 羽毛球 MES 本地/测试环境编排：MySQL 8.4 + Redis + Spring Boot + Vue
 #
 # 使用：
-#   1. docker compose up -d --build
-#   2. 浏览器打开 http://localhost （管理员：admin / admin123）
-#   3. Flyway 自动建表，并在 dev 配置下写入 2026-07-05 至当前日期的演示数据
+#   1. docker network create mes-face   # 首次执行一次；与 InsightFace 人脸服务共用的外部网络
+#   2. docker compose up -d --build
+#   3. 浏览器打开 http://localhost （管理员：admin / admin123）
+#   4. Flyway 自动建表，并在 dev 配置下写入 2026-07-05 至当前日期的演示数据
+#
+# 人脸服务按 deploy/insightface/compose.mes.yml 单独启动；未启动时 MES 与密码登录照常可用。
 #
 # 可选：复制 .env.example 为 .env 覆盖数据库密码、CORS 或微信小程序配置。
 # ----------------------------------------------------------------------------
@@ -83,6 +86,11 @@ services:
       MES_SECURITY_AUTH_DISABLED: "false"
       # 测试数据仅从开发专用位置加载，生产环境使用默认 db/migration
       MES_FLYWAY_LOCATIONS: classpath:db/migration,classpath:db/dev-migration
+      # InsightFace 在 mes-face 网络中的别名与容器端口(官方 compose.cpu.yml 的 server 服务监听 8080)；
+      # 不走宿主机 18097，宿主机端口只绑定 127.0.0.1 供本机 curl 调试
+      MES_INSIGHTFACE_BASE_URL: http://insightface:8080
+      MES_INSIGHTFACE_API_KEY: ${MES_INSIGHTFACE_API_KEY:-}
+    networks: [default, mes-face]
     ports:
       - "8080:8080"
     depends_on:
@@ -111,3 +119,8 @@ services:
 volumes:
   mysql-data:
   redis-data:
+
+networks:
+  # 由 docker network create mes-face 预先创建，MES 与 InsightFace 两个 Compose 项目共用
+  mes-face:
+    external: true
