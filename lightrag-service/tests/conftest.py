@@ -9,6 +9,11 @@ from typing import Iterator
 import pytest
 
 # P2：官方路由工厂需要 vendored 源码在导入路径上。
+# P3: isolation scripts live under scripts/; tests need 'isolation.*' and 'fakes'.
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
 VENDORED_ROOT = Path(__file__).resolve().parents[1] / "LightRAG"
 if str(VENDORED_ROOT) not in sys.path:
     sys.path.insert(0, str(VENDORED_ROOT))
