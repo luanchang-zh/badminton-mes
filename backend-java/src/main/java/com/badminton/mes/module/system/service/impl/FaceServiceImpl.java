@@ -14,6 +14,7 @@ import com.badminton.mes.common.security.RoleCodeConstants;
 import com.badminton.mes.module.system.client.FaceImage;
 import com.badminton.mes.module.system.client.InsightFaceApiException;
 import com.badminton.mes.module.system.client.InsightFaceClient;
+import com.badminton.mes.module.system.client.InsightFaceModels.DeleteFaceResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.EnrollResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.FaceSample;
 import com.badminton.mes.module.system.client.InsightFaceModels.RejectedImage;
@@ -120,6 +121,43 @@ public class FaceServiceImpl implements FaceService {
     }
 
     @Override
+    public FaceEnrollRespVO addSamples(LoginUser loginUser, List<MultipartFile> images) {
+        if (isAdmin(loginUser)) {
+            throw new ServiceException(SystemErrorCodeConstants.FACE_ENROLL_ADMIN_FORBIDDEN);
+        }
+        if (images == null || images.isEmpty()) {
+            throw new ServiceException(SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID, "追加样本至少需要 1 张照片");
+        }
+        List<FaceImage> faceImages = FaceImage.fromUploads(images);
+        return withUserLock(loginUser.getUserId(), () -> doAddSamples(loginUser.getUserId(), faceImages));
+    }
+
+    @Override
+    public void deleteSample(LoginUser loginUser, String faceId) {
+        Long userId = loginUser.getUserId();
+        withUserLock(userId, () -> {
+            FaceBindingEntity binding = requireBinding(userId);
+            // 路径固定为本人的 Person，碰不到他人的 faceId：用别人的 faceId 删只会得到 404
+            DeleteFaceResult result = insightFaceClient.deleteFace(binding.getPersonId(), faceId);
+            if (result == DeleteFaceResult.PERSON_NOT_FOUND) {
+                healBinding(binding);
+                throw new ServiceException(SystemErrorCodeConstants.FACE_NOT_ENROLLED);
+            }
+            if (result == DeleteFaceResult.FACE_NOT_FOUND) {
+                throw new ServiceException(SystemErrorCodeConstants.FACE_SAMPLE_NOT_FOUND);
+            }
+            logger.info("[人脸样本] 已删除, userId: {}, faceId: {}", userId, faceId);
+            // 删到 0 张时关闭人脸登录，不保留一个没有样本、也无法登录的空人员
+            boolean empty = insightFaceClient.listFaces(binding.getPersonId()).map(List::isEmpty).orElse(true);
+            if (empty) {
+                logger.info("[人脸样本] 样本已删空，关闭人脸登录, userId: {}", userId);
+                doRemoveEnrollment(userId);
+            }
+            return null;
+        });
+    }
+
+    @Override
     public void removeEnrollment(Long userId) {
         withUserLock(userId, () -> {
             doRemoveEnrollment(userId);
@@ -175,6 +213,43 @@ public class FaceServiceImpl implements FaceService {
             logger.warn("[人脸登录] 更新最近登录时间失败, bindingId: {}, message: {}",
                     binding.getId(), exception.getMessage());
         }
+    }
+
+    private FaceEnrollRespVO doAddSamples(Long userId, List<FaceImage> images) {
+        FaceBindingEntity binding = requireBinding(userId);
+        String personId = binding.getPersonId();
+        Optional<List<FaceSample>> current = insightFaceClient.listFaces(personId);
+        if (current.isEmpty()) {
+            healBinding(binding);
+            throw new ServiceException(SystemErrorCodeConstants.FACE_NOT_ENROLLED);
+        }
+        int currentCount = current.get().size();
+        // 上限在锁内校验，并发追加无法同时越过；InsightFace 的存储上限 409 作为兜底
+        if (currentCount + images.size() > properties.getMaxFacesPerPerson()) {
+            throw new ServiceException(SystemErrorCodeConstants.FACE_SAMPLE_LIMIT,
+                    "样本数量已达上限，当前 " + currentCount + " 张，最多 " + properties.getMaxFacesPerPerson() + " 张");
+        }
+        EnrollResult result;
+        try {
+            result = insightFaceClient.addFaces(personId, images);
+        } catch (InsightFaceApiException exception) {
+            if (exception.is(404, "person_not_found") || exception.is(404, "collection_not_found")) {
+                healBinding(binding);
+                throw new ServiceException(SystemErrorCodeConstants.FACE_NOT_ENROLLED);
+            }
+            if (exception.is(409, "person_face_limit_exceeded")) {
+                throw new ServiceException(SystemErrorCodeConstants.FACE_SAMPLE_LIMIT);
+            }
+            throw insightFaceClient.unexpected("追加样本", exception);
+        }
+        logger.info("[人脸样本] 追加, userId: {}, accepted: {}, rejected: {}",
+                userId, result.faceIds().size(), result.rejectedImages().size());
+        return toEnrollResp(result, currentCount + result.faceIds().size());
+    }
+
+    private FaceBindingEntity requireBinding(Long userId) {
+        return faceBindingRepository.findByUserIdAndDeletedFalse(userId)
+                .orElseThrow(() -> new ServiceException(SystemErrorCodeConstants.FACE_NOT_ENROLLED));
     }
 
     /** 不加锁的关闭流程，供已经持有单用户锁的方法调用。 */

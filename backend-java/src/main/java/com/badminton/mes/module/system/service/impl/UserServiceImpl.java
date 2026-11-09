@@ -32,6 +32,7 @@ import com.badminton.mes.module.system.dal.repository.RoleRepository;
 import com.badminton.mes.module.system.dal.repository.UserRepository;
 import com.badminton.mes.module.system.dal.repository.UserRoleRepository;
 import com.badminton.mes.module.system.dal.repository.UserSpecifications;
+import com.badminton.mes.module.system.service.FaceService;
 import com.badminton.mes.module.system.service.UserService;
 import com.badminton.mes.module.system.service.WechatUserBindingService;
 
@@ -44,9 +45,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 /**
@@ -77,6 +80,11 @@ public class UserServiceImpl implements UserService {
 
     private final WechatUserBindingService wechatUserBindingService;
 
+    private final FaceService faceService;
+
+    /** 删除用户需要先在事务外调用人脸服务，再开启数据库事务，不能用方法级 @Transactional */
+    private final TransactionTemplate transactionTemplate;
+
     /**
      * 构造器注入，依赖不可变。
      *
@@ -86,12 +94,16 @@ public class UserServiceImpl implements UserService {
      * @param loginSessionRedisDAO 登录会话 DAO
      * @param passwordEncoder      密码编码器
      * @param organizationReferenceQuery 生产组织引用查询契约
+     * @param wechatUserBindingService 微信绑定 Service
+     * @param faceService          人脸服务，删除用户时同步删除 InsightFace Person
+     * @param transactionManager   事务管理器
      */
     public UserServiceImpl(UserRepository userRepository, UserRoleRepository userRoleRepository,
                            RoleRepository roleRepository, LoginSessionRedisDAO loginSessionRedisDAO,
                            PasswordEncoder passwordEncoder,
                            ProductionOrganizationReferenceQuery organizationReferenceQuery,
-                           WechatUserBindingService wechatUserBindingService) {
+                           WechatUserBindingService wechatUserBindingService,
+                           FaceService faceService, PlatformTransactionManager transactionManager) {
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.roleRepository = roleRepository;
@@ -99,6 +111,8 @@ public class UserServiceImpl implements UserService {
         this.passwordEncoder = passwordEncoder;
         this.organizationReferenceQuery = organizationReferenceQuery;
         this.wechatUserBindingService = wechatUserBindingService;
+        this.faceService = faceService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Override
@@ -194,18 +208,29 @@ public class UserServiceImpl implements UserService {
                 id, SecurityContextHolder.getRequiredLoginUserId());
     }
 
+    /**
+     * 删除用户。
+     *
+     * <p>不加方法级事务：InsightFace 读超时最长 30 秒，放在事务里会一直占着数据库连接。
+     * 顺序为校验 → 事务外删除人脸 Person 和绑定 → {@link TransactionTemplate} 内执行原有写操作。
+     * 人脸服务不可用时直接返回 C0001，避免账号已删、特征仍留在人脸库；
+     * 人脸已删、数据库写操作回滚时，用户仍在，绑定由查询时自愈，管理员重试即可。
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Long id) {
         validateNotCurrentUser(id);
-        UserEntity user = validateUserExists(id);
-        user.setDeleted(true);
-        userRepository.save(user);
-        // 授权关系随用户失效
-        userRoleRepository.logicDeleteByUserId(id);
-        evictSessionAfterCommit(id);
-        logger.info("[删除用户] id: {}, userNo: {}, operator: {}",
-                id, user.getUserNo(), SecurityContextHolder.getRequiredLoginUserId());
+        validateUserExists(id);
+        faceService.removeEnrollment(id);
+        transactionTemplate.executeWithoutResult(status -> {
+            UserEntity user = validateUserExists(id);
+            user.setDeleted(true);
+            userRepository.save(user);
+            // 授权关系随用户失效
+            userRoleRepository.logicDeleteByUserId(id);
+            evictSessionAfterCommit(id);
+            logger.info("[删除用户] id: {}, userNo: {}, operator: {}",
+                    id, user.getUserNo(), SecurityContextHolder.getRequiredLoginUserId());
+        });
     }
 
     @Override

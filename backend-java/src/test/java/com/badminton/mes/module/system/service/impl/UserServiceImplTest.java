@@ -1,5 +1,18 @@
 package com.badminton.mes.module.system.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +38,7 @@ import com.badminton.mes.module.system.dal.redis.LoginSessionRedisDAO;
 import com.badminton.mes.module.system.dal.repository.RoleRepository;
 import com.badminton.mes.module.system.dal.repository.UserRepository;
 import com.badminton.mes.module.system.dal.repository.UserRoleRepository;
+import com.badminton.mes.module.system.service.FaceService;
 import com.badminton.mes.module.system.service.WechatUserBindingService;
 
 import org.junit.jupiter.api.AfterEach;
@@ -33,6 +47,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -40,16 +55,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * {@link UserServiceImpl} 单元测试。
@@ -90,13 +96,19 @@ class UserServiceImplTest {
     @Mock
     private WechatUserBindingService wechatUserBindingService;
 
+    @Mock
+    private FaceService faceService;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     private UserServiceImpl userService;
 
     @BeforeEach
     void setUp() {
         userService = new UserServiceImpl(userRepository, userRoleRepository, roleRepository,
                 loginSessionRedisDAO, passwordEncoder, organizationReferenceQuery,
-                wechatUserBindingService);
+                wechatUserBindingService, faceService, transactionManager);
         lenient().when(wechatUserBindingService.findActiveByUserId(any())).thenReturn(Optional.empty());
         lenient().when(wechatUserBindingService.findActiveByUserIds(anyCollection())).thenReturn(Map.of());
         lenient().when(wechatUserBindingService.findActiveUserIds()).thenReturn(Set.of());
@@ -330,6 +342,26 @@ class UserServiceImplTest {
         assertThat(captor.getValue().getDeleted()).isTrue();
         verify(userRoleRepository).logicDeleteByUserId(USER_ID);
         verify(loginSessionRedisDAO).removeSessionByUserId(USER_ID);
+        // 人脸在事务外先删，数据库写操作在之后的事务里
+        InOrder order = inOrder(faceService, transactionManager, userRepository);
+        order.verify(faceService).removeEnrollment(USER_ID);
+        order.verify(transactionManager).getTransaction(any());
+        order.verify(userRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("删除用户：人脸服务不可用时返回 C0001，用户不被删除")
+    void deleteUserFailsWhenFaceServiceDown() {
+        when(userRepository.findByIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(buildUser(1)));
+        doThrow(new ServiceException(SystemErrorCodeConstants.FACE_SERVICE_UNAVAILABLE))
+                .when(faceService).removeEnrollment(USER_ID);
+
+        assertThatThrownBy(() -> userService.deleteUser(USER_ID))
+                .isInstanceOfSatisfying(ServiceException.class, ex ->
+                        assertThat(ex.getErrorCode()).isEqualTo(SystemErrorCodeConstants.FACE_SERVICE_UNAVAILABLE));
+        verify(userRepository, never()).save(any());
+        verify(userRoleRepository, never()).logicDeleteByUserId(any());
+        verifyNoInteractions(transactionManager);
     }
 
     @Test

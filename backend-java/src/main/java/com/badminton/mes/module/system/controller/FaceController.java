@@ -9,13 +9,18 @@ import com.badminton.mes.module.system.controller.vo.FaceProfileRespVO;
 import com.badminton.mes.module.system.service.FaceService;
 
 import org.springframework.http.MediaType;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import jakarta.validation.constraints.Pattern;
 
 /**
  * 本人人脸登录管理接口。
@@ -26,6 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
  * @author xxy-lh
  * @date 2026/11/09
  */
+@Validated
 @RestController
 @RequestMapping("/api/system/face")
 public class FaceController {
@@ -63,5 +69,41 @@ public class FaceController {
     @GetMapping("/profile")
     public CommonResult<FaceProfileRespVO> getProfile() {
         return CommonResult.success(faceService.getProfile(SecurityContextHolder.getRequiredLoginUser()));
+    }
+
+    /**
+     * 为本人追加样本。
+     *
+     * @param images 至少 1 张照片，追加后总数不超过上限
+     * @return 追加结果；全部照片被拒时 acceptedCount 为 0
+     */
+    @PostMapping(value = "/samples", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public CommonResult<FaceEnrollRespVO> addSamples(@RequestPart("images") List<MultipartFile> images) {
+        return CommonResult.success(faceService.addSamples(SecurityContextHolder.getRequiredLoginUser(), images));
+    }
+
+    /**
+     * 删除本人的一张样本；删到 0 张时自动关闭人脸登录。
+     *
+     * @param faceId FaceSample id
+     * @return 空数据成功响应
+     */
+    @DeleteMapping("/samples/{faceId}")
+    public CommonResult<Void> deleteSample(
+            @PathVariable("faceId")
+            @Pattern(regexp = "^[A-Za-z0-9_-]{1,64}$", message = "样本 id 格式不正确") String faceId) {
+        faceService.deleteSample(SecurityContextHolder.getRequiredLoginUser(), faceId);
+        return CommonResult.success(null);
+    }
+
+    /**
+     * 关闭本人人脸登录并删除全部特征。未注册时也返回成功。
+     *
+     * @return 空数据成功响应
+     */
+    @DeleteMapping("/enrollment")
+    public CommonResult<Void> disable() {
+        faceService.removeEnrollment(SecurityContextHolder.getRequiredLoginUserId());
+        return CommonResult.success(null);
     }
 }

@@ -40,6 +40,23 @@ public interface FaceService {
     FaceProfileRespVO getProfile(LoginUser loginUser);
 
     /**
+     * 为本人追加样本。
+     *
+     * @param loginUser 当前登录用户
+     * @param images 至少 1 张照片
+     * @return 追加结果，结构与注册相同
+     */
+    FaceEnrollRespVO addSamples(LoginUser loginUser, List<MultipartFile> images);
+
+    /**
+     * 删除本人的一张样本；删到 0 张时关闭人脸登录。
+     *
+     * @param loginUser 当前登录用户
+     * @param faceId FaceSample id
+     */
+    void deleteSample(LoginUser loginUser, String faceId);
+
+    /**
      * 关闭指定用户的人脸登录：删除 InsightFace Person(不存在视为成功)，再把有效绑定标为已删除。
      *
      * <p>没有有效绑定时也会删除 Person，顺带清理之前失败留下的残留。删除 Person 失败时抛 C0001 / C0200，

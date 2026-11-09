@@ -26,6 +26,7 @@ import com.badminton.mes.common.security.LoginUser;
 import com.badminton.mes.common.security.RoleCodeConstants;
 import com.badminton.mes.module.system.client.InsightFaceApiException;
 import com.badminton.mes.module.system.client.InsightFaceClient;
+import com.badminton.mes.module.system.client.InsightFaceModels.DeleteFaceResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.EnrollResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.FaceSample;
 import com.badminton.mes.module.system.client.FaceImage;
@@ -52,7 +53,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
-/** 人脸注册、状态查询、关闭、识别判定的业务规则。 */
+/** 人脸注册、状态查询、追加与删除样本、关闭、识别判定的业务规则。 */
 @ExtendWith(MockitoExtension.class)
 class FaceServiceImplTest {
 
@@ -345,6 +346,97 @@ class FaceServiceImplTest {
         service.recordLogin(binding);
 
         assertThat(binding.getLastLoginTime()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("追加：ADMIN 返回 A0301，未注册返回 A0440")
+    void addSamplesRejectsAdminAndNotEnrolled() {
+        assertServiceError(() -> service.addSamples(user(RoleCodeConstants.ADMIN), images(1)),
+                SystemErrorCodeConstants.FACE_ENROLL_ADMIN_FORBIDDEN);
+        assertServiceError(() -> service.addSamples(user(), images(1)), SystemErrorCodeConstants.FACE_NOT_ENROLLED);
+        verify(insightFaceClient, never()).addFaces(anyString(), anyList());
+    }
+
+    @Test
+    @DisplayName("追加：锁内预校验上限，当前 4 张再加 2 张返回 A0425，不调用追加接口")
+    void addSamplesChecksLimitInsideLock() {
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(binding()));
+        when(insightFaceClient.listFaces(PERSON_ID)).thenReturn(Optional.of(samples(4)));
+
+        assertServiceError(() -> service.addSamples(user(), images(2)), SystemErrorCodeConstants.FACE_SAMPLE_LIMIT);
+        verify(insightFaceClient, never()).addFaces(anyString(), anyList());
+        verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
+    }
+
+    @Test
+    @DisplayName("追加：成功时 faceCount 为原有加本次成功张数")
+    void addSamplesSuccess() {
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(binding()));
+        when(insightFaceClient.listFaces(PERSON_ID)).thenReturn(Optional.of(samples(2)));
+        when(insightFaceClient.addFaces(eq(PERSON_ID), anyList()))
+                .thenReturn(new EnrollResult(List.of("f9"), List.of(new RejectedImage(2, "未检测到人脸"))));
+
+        FaceEnrollRespVO response = service.addSamples(user(), images(2));
+
+        assertThat(response.getAcceptedCount()).isEqualTo(1);
+        assertThat(response.getFaceCount()).isEqualTo(3);
+        assertThat(response.getRejectedImages()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("追加：Person 已不存在时自愈并返回 A0440；InsightFace 上限 409 兜底为 A0425")
+    void addSamplesHandlesInsightFaceErrors() {
+        FaceBindingEntity binding = binding();
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(binding));
+        when(insightFaceClient.listFaces(PERSON_ID)).thenReturn(Optional.of(samples(1)));
+        when(insightFaceClient.addFaces(eq(PERSON_ID), anyList()))
+                .thenThrow(new InsightFaceApiException(409, "person_face_limit_exceeded", null))
+                .thenThrow(new InsightFaceApiException(404, "person_not_found", null));
+
+        assertServiceError(() -> service.addSamples(user(), images(1)), SystemErrorCodeConstants.FACE_SAMPLE_LIMIT);
+        assertThat(binding.getDeleted()).isFalse();
+        assertServiceError(() -> service.addSamples(user(), images(1)), SystemErrorCodeConstants.FACE_NOT_ENROLLED);
+        assertThat(binding.getDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("删除样本：未注册 A0440，样本不存在 A0402，Person 不存在时自愈并返回 A0440")
+    void deleteSampleErrors() {
+        assertServiceError(() -> service.deleteSample(user(), "f1"), SystemErrorCodeConstants.FACE_NOT_ENROLLED);
+
+        FaceBindingEntity binding = binding();
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(binding));
+        when(insightFaceClient.deleteFace(PERSON_ID, "f1"))
+                .thenReturn(DeleteFaceResult.FACE_NOT_FOUND, DeleteFaceResult.PERSON_NOT_FOUND);
+
+        assertServiceError(() -> service.deleteSample(user(), "f1"), SystemErrorCodeConstants.FACE_SAMPLE_NOT_FOUND);
+        assertThat(binding.getDeleted()).isFalse();
+        assertServiceError(() -> service.deleteSample(user(), "f1"), SystemErrorCodeConstants.FACE_NOT_ENROLLED);
+        assertThat(binding.getDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("删除样本：还有剩余时保留绑定；删到 0 张时删除 Person 并关闭绑定")
+    void deleteSampleClosesWhenEmpty() {
+        FaceBindingEntity binding = binding();
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(binding));
+        when(insightFaceClient.deleteFace(eq(PERSON_ID), anyString())).thenReturn(DeleteFaceResult.DELETED);
+        when(insightFaceClient.listFaces(PERSON_ID)).thenReturn(Optional.of(samples(1)), Optional.of(List.of()));
+
+        service.deleteSample(user(), "f1");
+        assertThat(binding.getDeleted()).isFalse();
+        verify(insightFaceClient, never()).deletePerson(anyString());
+
+        service.deleteSample(user(), "f2");
+        verify(insightFaceClient).deletePerson(PERSON_ID);
+        assertThat(binding.getDeleted()).isTrue();
+        verify(faceUserLockRedisDAO, times(2)).unlock(USER_ID, LOCK_TOKEN);
+    }
+
+    private static List<FaceSample> samples(int count) {
+        return java.util.stream.IntStream.range(0, count)
+                .mapToObj(i -> new FaceSample("f" + i, LocalDateTime.of(2026, 11, 9, 10, i)))
+                .toList();
     }
 
     private static FaceImage loginImage() {
