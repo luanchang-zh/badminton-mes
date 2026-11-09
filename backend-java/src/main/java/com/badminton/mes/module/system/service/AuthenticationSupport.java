@@ -124,6 +124,16 @@ public class AuthenticationSupport {
         return response;
     }
 
+    /**
+     * 查询用户当前有效且启用的角色编码。人脸登录需要在发会话前拒绝 ADMIN。
+     *
+     * @param userId 用户主键
+     * @return 角色编码，按角色 id 升序
+     */
+    public List<String> loadEnabledRoleCodes(Long userId) {
+        return loadEnabledRoles(userId).stream().map(RoleEntity::getRoleCode).toList();
+    }
+
     private void validateEnabled(UserEntity user) {
         if (!CommonStatusEnum.ENABLED.getStatus().equals(user.getStatus())) {
             throw new ServiceException(SystemErrorCodeConstants.LOGIN_USER_DISABLED);

@@ -21,4 +21,13 @@ public interface FaceBindingRepository extends JpaRepository<FaceBindingEntity, 
      * @return 有效绑定
      */
     Optional<FaceBindingEntity> findByUserIdAndDeletedFalse(Long userId);
+
+    /**
+     * 按 Person 查询有效绑定，人脸登录核对搜索结果使用。数据库唯一索引保证同一 Collection 下最多一条。
+     *
+     * @param collectionId Collection id
+     * @param personId Person id
+     * @return 有效绑定
+     */
+    Optional<FaceBindingEntity> findByCollectionIdAndPersonIdAndDeletedFalse(String collectionId, String personId);
 }

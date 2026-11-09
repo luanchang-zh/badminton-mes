@@ -48,6 +48,29 @@ public final class InsightFaceModels {
     public record FaceSample(String faceId, LocalDateTime createdAt) {
     }
 
+    /**
+     * 搜索命中的一个人员。InsightFace 已按 Person 汇总，取该人员最高的样本相似度。
+     *
+     * @param personId Person id
+     * @param externalId 注册时写入的 external_id，即 MES 用户主键
+     * @param similarity cosine 相似度，只用于判定和写日志，不返回给前端
+     */
+    public record SearchMatch(String personId, String externalId, double similarity) {
+    }
+
+    /** 删除单张样本的结果。 */
+    public enum DeleteFaceResult {
+
+        /** 已删除 */
+        DELETED,
+
+        /** 样本不存在，或不属于该 Person */
+        FACE_NOT_FOUND,
+
+        /** Person 或 Collection 不存在 */
+        PERSON_NOT_FOUND
+    }
+
     private InsightFaceModels() {
     }
 }

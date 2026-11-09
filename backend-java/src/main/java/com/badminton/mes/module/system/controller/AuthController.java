@@ -12,19 +12,23 @@ import com.badminton.mes.module.system.controller.vo.RoleRespVO;
 import com.badminton.mes.module.system.service.AuthService;
 import com.badminton.mes.module.system.service.RoleService;
 
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 /**
  * 认证 Controller。
  *
- * <p>login 是唯一免登录接口(白名单见 SecurityWebConfig)，
+ * <p>login、face_login、register、registration_roles 免登录(白名单见 SecurityWebConfig)，
  * 其余接口经拦截器登录校验后进入。
  *
  * @author 张竹灏
@@ -57,6 +61,21 @@ public class AuthController {
     @PostMapping("/login")
     public CommonResult<AuthLoginRespVO> login(@Valid @RequestBody AuthLoginReqVO reqVO) {
         return CommonResult.success(authService.login(reqVO));
+    }
+
+    /**
+     * 人脸登录：一张照片换取与工号密码登录相同的会话。
+     *
+     * <p>来源 IP 取 {@code getRemoteAddr()}，Tomcat 已按 X-Real-IP 处理，不自行读取请求头。
+     *
+     * @param images multipart 字段 image，恰好 1 个文件
+     * @param request 当前请求
+     * @return token 与用户信息
+     */
+    @PostMapping(value = "/face_login", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public CommonResult<AuthLoginRespVO> faceLogin(@RequestPart("image") List<MultipartFile> images,
+                                                   HttpServletRequest request) {
+        return CommonResult.success(authService.faceLogin(images, request.getRemoteAddr()));
     }
 
     /**

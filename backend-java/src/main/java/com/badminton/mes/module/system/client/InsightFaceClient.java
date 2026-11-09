@@ -14,9 +14,11 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.badminton.mes.common.exception.ServiceException;
+import com.badminton.mes.module.system.client.InsightFaceModels.DeleteFaceResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.EnrollResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.FaceSample;
 import com.badminton.mes.module.system.client.InsightFaceModels.RejectedImage;
+import com.badminton.mes.module.system.client.InsightFaceModels.SearchMatch;
 import com.badminton.mes.module.system.config.InsightFaceProperties;
 import com.badminton.mes.module.system.constants.SystemErrorCodeConstants;
 
@@ -72,6 +74,9 @@ public class InsightFaceClient {
 
     /** 查询样本单页上限；每人样本上限远小于此值，一页即可取全 */
     private static final int FACE_PAGE_LIMIT = 100;
+
+    /** 搜索只取前两名：第一名判定阈值，第二名计算分差；官方结果已按 Person 汇总 */
+    private static final int SEARCH_LIMIT = 2;
 
     private static final String REQUEST_ID_HEADER = "x-request-id";
 
@@ -179,6 +184,82 @@ public class InsightFaceClient {
                 .uri("/v1/collections/{collectionId}/persons", properties.getCollectionId())
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body.build()));
+    }
+
+    /**
+     * 向已有 Person 追加样本，review_mode 固定为 standard。全部照片被拒时返回 {@code faceIds} 为空的结果。
+     *
+     * @param personId Person id
+     * @param images 已校验的照片
+     * @return 入库结果
+     * @throws InsightFaceApiException 404 person_not_found、409 person_face_limit_exceeded 等业务错误
+     */
+    public EnrollResult addFaces(String personId, List<FaceImage> images) {
+        return enroll("追加样本", restClient.post()
+                .uri("/v1/collections/{collectionId}/persons/{personId}/faces",
+                        properties.getCollectionId(), personId)
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(imagesBody(images).build()));
+    }
+
+    /**
+     * 删除 Person 下的一张样本。路径带 Person id，用别人的 faceId 删除只会得到 404。
+     *
+     * @param personId Person id
+     * @param faceId FaceSample id
+     * @return 删除结果
+     */
+    public DeleteFaceResult deleteFace(String personId, String faceId) {
+        try {
+            execute("删除样本", restClient.delete()
+                    .uri("/v1/collections/{collectionId}/persons/{personId}/faces/{faceId}",
+                            properties.getCollectionId(), personId, faceId));
+            logger.info("[InsightFace] 已删除样本, personId: {}, faceId: {}", personId, faceId);
+            return DeleteFaceResult.DELETED;
+        } catch (InsightFaceApiException exception) {
+            if (isPersonOrCollectionMissing(exception)) {
+                return DeleteFaceResult.PERSON_NOT_FOUND;
+            }
+            // 404 时 face_not_found 表示样本不存在；422 时同名错误码含义不同，因此必须连同状态码判断
+            if (exception.is(404, "face_not_found")) {
+                return DeleteFaceResult.FACE_NOT_FOUND;
+            }
+            throw unexpected("删除样本", exception);
+        }
+    }
+
+    /**
+     * 用一张照片搜索人员库，limit 固定为 2，阈值使用召回阈值。
+     *
+     * @param image 已校验的照片
+     * @return 按相似度降序的候选人员；Collection 不存在时为空
+     * @throws InsightFaceApiException 422 face_not_found(无人脸)、422 invalid_image(无法解码)等
+     */
+    public List<SearchMatch> search(FaceImage image) {
+        MultipartBodyBuilder body = new MultipartBodyBuilder();
+        body.part("image", image.bytes()).filename(image.filename()).contentType(image.mediaType());
+        body.part("limit", String.valueOf(SEARCH_LIMIT));
+        body.part("threshold", String.valueOf(properties.getRecallThreshold()));
+        JsonNode response;
+        try {
+            response = execute("搜索", restClient.post()
+                    .uri("/v1/collections/{collectionId}/search", properties.getCollectionId())
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body.build()));
+        } catch (InsightFaceApiException exception) {
+            // 还没有任何人注册时 Collection 可能不存在，等同于没有候选
+            if (exception.is(404, "collection_not_found")) {
+                return List.of();
+            }
+            throw exception;
+        }
+        List<SearchMatch> matches = new ArrayList<>();
+        for (JsonNode match : response.path("matches")) {
+            JsonNode person = match.path("person");
+            matches.add(new SearchMatch(person.path("id").asString(), person.path("external_id").asString(""),
+                    match.path("similarity").asDouble()));
+        }
+        return matches;
     }
 
     /**

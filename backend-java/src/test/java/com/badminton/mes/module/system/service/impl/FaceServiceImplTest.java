@@ -28,7 +28,9 @@ import com.badminton.mes.module.system.client.InsightFaceApiException;
 import com.badminton.mes.module.system.client.InsightFaceClient;
 import com.badminton.mes.module.system.client.InsightFaceModels.EnrollResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.FaceSample;
+import com.badminton.mes.module.system.client.FaceImage;
 import com.badminton.mes.module.system.client.InsightFaceModels.RejectedImage;
+import com.badminton.mes.module.system.client.InsightFaceModels.SearchMatch;
 import com.badminton.mes.module.system.config.InsightFaceProperties;
 import com.badminton.mes.module.system.constants.SystemErrorCodeConstants;
 import com.badminton.mes.module.system.controller.vo.FaceEnrollRespVO;
@@ -46,10 +48,11 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
-/** 人脸注册、状态查询、关闭的业务规则。 */
+/** 人脸注册、状态查询、关闭、识别判定的业务规则。 */
 @ExtendWith(MockitoExtension.class)
 class FaceServiceImplTest {
 
@@ -274,6 +277,78 @@ class FaceServiceImplTest {
                 SystemErrorCodeConstants.FACE_SERVICE_UNAVAILABLE);
         verify(faceBindingRepository, never()).saveAndFlush(any());
         verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
+    }
+
+    @Test
+    @DisplayName("识别：唯一候选高于阈值且绑定一致时通过，只有一个候选不做分差校验")
+    void recognizeSingleCandidate() {
+        when(insightFaceClient.search(any())).thenReturn(List.of(new SearchMatch(PERSON_ID, "7", 0.41)));
+        FaceBindingEntity binding = binding();
+        when(faceBindingRepository.findByCollectionIdAndPersonIdAndDeletedFalse("course_users", PERSON_ID))
+                .thenReturn(Optional.of(binding));
+
+        assertThat(service.recognize(loginImage())).isSameAs(binding);
+    }
+
+    @Test
+    @DisplayName("识别：同一人的多条记录去重后不会因分差为 0 拒绝本人")
+    void recognizeDeduplicatesSamePerson() {
+        when(insightFaceClient.search(any())).thenReturn(List.of(
+                new SearchMatch(PERSON_ID, "7", 0.70), new SearchMatch(PERSON_ID, "7", 0.69),
+                new SearchMatch("user-8", "8", 0.30)));
+        when(faceBindingRepository.findByCollectionIdAndPersonIdAndDeletedFalse("course_users", PERSON_ID))
+                .thenReturn(Optional.of(binding()));
+
+        assertThat(service.recognize(loginImage()).getUserId()).isEqualTo(USER_ID);
+    }
+
+    @Test
+    @DisplayName("识别：没有候选、第一名低于阈值、两人分差小于 margin 都返回 A0200")
+    void recognizeRejects() {
+        when(insightFaceClient.search(any())).thenReturn(
+                List.of(),
+                List.of(new SearchMatch(PERSON_ID, "7", 0.39)),
+                List.of(new SearchMatch(PERSON_ID, "7", 0.60), new SearchMatch("user-8", "8", 0.56)));
+
+        for (int i = 0; i < 3; i++) {
+            assertServiceError(() -> service.recognize(loginImage()), SystemErrorCodeConstants.FACE_LOGIN_REJECTED);
+        }
+        verify(faceBindingRepository, never()).findByCollectionIdAndPersonIdAndDeletedFalse(any(), any());
+    }
+
+    @Test
+    @DisplayName("识别：Person 没有有效绑定或 external_id 不一致返回 A0200")
+    void recognizeRejectsBindingMismatch() {
+        when(insightFaceClient.search(any())).thenReturn(
+                List.of(new SearchMatch(PERSON_ID, "7", 0.80)), List.of(new SearchMatch(PERSON_ID, "99", 0.80)));
+        when(faceBindingRepository.findByCollectionIdAndPersonIdAndDeletedFalse("course_users", PERSON_ID))
+                .thenReturn(Optional.empty(), Optional.of(binding()));
+
+        assertServiceError(() -> service.recognize(loginImage()), SystemErrorCodeConstants.FACE_LOGIN_REJECTED);
+        assertServiceError(() -> service.recognize(loginImage()), SystemErrorCodeConstants.FACE_LOGIN_REJECTED);
+    }
+
+    @Test
+    @DisplayName("识别：照片无人脸或无法解码(422)返回 A0700")
+    void recognizeImageRejected() {
+        when(insightFaceClient.search(any())).thenThrow(new InsightFaceApiException(422, "face_not_found", null));
+
+        assertServiceError(() -> service.recognize(loginImage()), SystemErrorCodeConstants.FACE_IMAGE_REJECTED);
+    }
+
+    @Test
+    @DisplayName("记录登录时间：写库失败不抛异常")
+    void recordLoginSwallowsFailure() {
+        FaceBindingEntity binding = binding();
+        when(faceBindingRepository.save(binding)).thenThrow(new RuntimeException("db down"));
+
+        service.recordLogin(binding);
+
+        assertThat(binding.getLastLoginTime()).isNotNull();
+    }
+
+    private static FaceImage loginImage() {
+        return new FaceImage("photo-1.jpg", new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}, MediaType.IMAGE_JPEG);
     }
 
     private static LoginUser user(String... roleCodes) {

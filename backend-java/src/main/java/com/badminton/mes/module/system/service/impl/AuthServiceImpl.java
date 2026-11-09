@@ -8,18 +8,23 @@ import java.util.Optional;
 import com.badminton.mes.common.enums.CommonStatusEnum;
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.common.security.LoginUser;
+import com.badminton.mes.common.security.RoleCodeConstants;
 import com.badminton.mes.common.security.SecurityContextHolder;
 import com.badminton.mes.common.util.DesensitizeUtils;
+import com.badminton.mes.module.system.client.FaceImage;
+import com.badminton.mes.module.system.config.InsightFaceProperties;
 import com.badminton.mes.module.system.constants.SystemErrorCodeConstants;
 import com.badminton.mes.module.system.controller.vo.AuthLoginReqVO;
 import com.badminton.mes.module.system.controller.vo.AuthLoginRespVO;
 import com.badminton.mes.module.system.controller.vo.AuthPasswordReqVO;
 import com.badminton.mes.module.system.controller.vo.AuthProfileRespVO;
 import com.badminton.mes.module.system.controller.vo.AuthRegisterReqVO;
+import com.badminton.mes.module.system.dal.entity.FaceBindingEntity;
 import com.badminton.mes.module.system.dal.entity.RoleEntity;
 import com.badminton.mes.module.system.dal.entity.UserEntity;
 import com.badminton.mes.module.system.dal.entity.UserRoleEntity;
 import com.badminton.mes.module.system.dal.entity.WechatUserBindingEntity;
+import com.badminton.mes.module.system.dal.redis.FaceLoginFailRedisDAO;
 import com.badminton.mes.module.system.dal.redis.LoginSessionRedisDAO;
 import com.badminton.mes.module.system.dal.redis.SystemRedisKeyConstants;
 import com.badminton.mes.module.system.dal.repository.RoleRepository;
@@ -27,6 +32,7 @@ import com.badminton.mes.module.system.dal.repository.UserRepository;
 import com.badminton.mes.module.system.dal.repository.UserRoleRepository;
 import com.badminton.mes.module.system.service.AuthService;
 import com.badminton.mes.module.system.service.AuthenticationSupport;
+import com.badminton.mes.module.system.service.FaceService;
 import com.badminton.mes.module.system.service.RoleService;
 import com.badminton.mes.module.system.service.WechatUserBindingService;
 
@@ -39,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 认证 Service 实现。
@@ -74,6 +81,12 @@ public class AuthServiceImpl implements AuthService {
 
     private final WechatUserBindingService wechatUserBindingService;
 
+    private final FaceService faceService;
+
+    private final FaceLoginFailRedisDAO faceLoginFailRedisDAO;
+
+    private final InsightFaceProperties insightFaceProperties;
+
     /**
      * 构造器注入，依赖不可变。
      *
@@ -83,11 +96,18 @@ public class AuthServiceImpl implements AuthService {
      * @param loginSessionRedisDAO 登录会话 DAO
      * @param passwordEncoder      密码编码器
      * @param authenticationSupport 认证公共能力
+     * @param roleService          角色 Service
+     * @param wechatUserBindingService 微信绑定 Service
+     * @param faceService          人脸服务
+     * @param faceLoginFailRedisDAO 人脸登录 IP 失败计数
+     * @param insightFaceProperties 人脸服务配置
      */
     public AuthServiceImpl(UserRepository userRepository, UserRoleRepository userRoleRepository,
                            RoleRepository roleRepository, LoginSessionRedisDAO loginSessionRedisDAO,
                            PasswordEncoder passwordEncoder, AuthenticationSupport authenticationSupport,
-                           RoleService roleService, WechatUserBindingService wechatUserBindingService) {
+                           RoleService roleService, WechatUserBindingService wechatUserBindingService,
+                           FaceService faceService, FaceLoginFailRedisDAO faceLoginFailRedisDAO,
+                           InsightFaceProperties insightFaceProperties) {
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
         this.roleRepository = roleRepository;
@@ -96,6 +116,9 @@ public class AuthServiceImpl implements AuthService {
         this.authenticationSupport = authenticationSupport;
         this.roleService = roleService;
         this.wechatUserBindingService = wechatUserBindingService;
+        this.faceService = faceService;
+        this.faceLoginFailRedisDAO = faceLoginFailRedisDAO;
+        this.insightFaceProperties = insightFaceProperties;
     }
 
     @Override
@@ -110,6 +133,59 @@ public class AuthServiceImpl implements AuthService {
         }
         applyWechatBinding(response, response.getUserId());
         return response;
+    }
+
+    @Override
+    public AuthLoginRespVO faceLogin(List<MultipartFile> images, String clientIp) {
+        InsightFaceProperties.FaceLogin limit = insightFaceProperties.getFaceLogin();
+        // 1. IP 限流：达到上限直接拒绝，不调用人脸服务
+        if (faceLoginFailRedisDAO.getFailCount(clientIp) >= limit.getIpFailMax()) {
+            logger.warn("[人脸登录] 来源 IP 失败次数超限, ip: {}", clientIp);
+            throw new ServiceException(SystemErrorCodeConstants.FACE_LOGIN_TOO_FREQUENT);
+        }
+        FaceBindingEntity binding;
+        UserEntity user;
+        try {
+            // 2. 上传校验 → 3～7. 搜索、判定、核对绑定 → 8. 核对用户
+            if (images == null || images.size() != 1) {
+                throw new ServiceException(SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID, "人脸登录需要恰好 1 张照片");
+            }
+            binding = faceService.recognize(FaceImage.fromUpload(1, images.getFirst()));
+            user = loadFaceLoginUser(binding.getUserId());
+        } catch (ServiceException exception) {
+            // C 类(人脸服务不可用或超时)不计数，避免服务故障期间把所有人锁住
+            if (exception.getErrorCode().code().charAt(0) != 'C') {
+                long failCount = faceLoginFailRedisDAO.recordFail(clientIp, limit.getIpFailWindow());
+                logger.info("[人脸登录] 失败, ip: {}, code: {}, failCount: {}",
+                        clientIp, exception.getErrorCode().code(), failCount);
+            }
+            throw exception;
+        }
+        // 9. 发会话：与密码登录共用 createSession 和 applyWechatBinding，旧会话互踢；成功不清零失败计数
+        AuthLoginRespVO response = authenticationSupport.createSession(user);
+        applyWechatBinding(response, response.getUserId());
+        faceService.recordLogin(binding);
+        logger.info("[人脸登录成功] userId: {}, userNo: {}, ip: {}", user.getId(), user.getUserNo(), clientIp);
+        return response;
+    }
+
+    /**
+     * 人脸命中后核对用户：不存在 A0200、停用 A0202、含 ADMIN A0220。放在确认命中之后，
+     * 与密码登录先验证凭据、再提示停用的顺序一致。
+     */
+    private UserEntity loadFaceLoginUser(Long userId) {
+        UserEntity user = userRepository.findByIdAndDeletedFalse(userId).orElse(null);
+        if (user == null) {
+            logger.warn("[人脸登录] 绑定的用户不存在或已删除, userId: {}", userId);
+            throw new ServiceException(SystemErrorCodeConstants.FACE_LOGIN_REJECTED);
+        }
+        if (!CommonStatusEnum.ENABLED.getStatus().equals(user.getStatus())) {
+            throw new ServiceException(SystemErrorCodeConstants.LOGIN_USER_DISABLED);
+        }
+        if (authenticationSupport.loadEnabledRoleCodes(userId).contains(RoleCodeConstants.ADMIN)) {
+            throw new ServiceException(SystemErrorCodeConstants.FACE_LOGIN_ADMIN_FORBIDDEN);
+        }
+        return user;
     }
 
     @Override

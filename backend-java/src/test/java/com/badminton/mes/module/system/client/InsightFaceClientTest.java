@@ -23,7 +23,9 @@ import com.badminton.mes.common.core.ErrorCode;
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.module.system.client.InsightFaceModels.EnrollResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.FaceSample;
+import com.badminton.mes.module.system.client.InsightFaceModels.DeleteFaceResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.RejectedImage;
+import com.badminton.mes.module.system.client.InsightFaceModels.SearchMatch;
 import com.badminton.mes.module.system.config.InsightFaceProperties;
 import com.badminton.mes.module.system.constants.SystemErrorCodeConstants;
 
@@ -199,6 +201,68 @@ class InsightFaceClientTest {
             assertThat(list.getFirst().createdAt()).isNotNull();
         });
         assertThat(client.listFaces("user-8")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("搜索：limit=2、threshold 为召回阈值，解析 person id、external_id 和相似度")
+    void searchParsesMatches() {
+        server.expect(requestTo(COLLECTION + "/search")).andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString("name=\"limit\"")))
+                .andExpect(content().string(containsString("0.2")))
+                .andExpect(content().string(containsString("filename=\"photo-1.jpg\"")))
+                .andRespond(withSuccess("{\"matches\":[{\"person\":{\"id\":\"user-7\",\"external_id\":\"7\"},"
+                        + "\"similarity\":0.71,\"matched_face_id\":\"f1\"}]}", MediaType.APPLICATION_JSON));
+
+        List<SearchMatch> matches = client.search(IMAGES.getFirst());
+
+        assertThat(matches).containsExactly(new SearchMatch("user-7", "7", 0.71));
+    }
+
+    @Test
+    @DisplayName("搜索：Collection 不存在视为没有候选；422 无人脸原样交给调用方")
+    void searchMissingCollectionAndNoFace() {
+        server.expect(requestTo(COLLECTION + "/search"))
+                .andRespond(error(HttpStatus.NOT_FOUND, "collection_not_found", "{}"));
+        server.expect(requestTo(COLLECTION + "/search"))
+                .andRespond(error(HttpStatus.UNPROCESSABLE_CONTENT, "face_not_found", "{}"));
+
+        assertThat(client.search(IMAGES.getFirst())).isEmpty();
+        assertThatThrownBy(() -> client.search(IMAGES.getFirst()))
+                .isInstanceOfSatisfying(InsightFaceApiException.class,
+                        exception -> assertThat(exception.is(422, "face_not_found")).isTrue());
+    }
+
+    @Test
+    @DisplayName("追加样本：部分成功与全部被拒都返回结果；样本上限 409 原样交给调用方")
+    void addFaces() {
+        server.expect(requestTo(PERSONS + "/user-7/faces")).andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.CREATED).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"faces\":[{\"id\":\"f3\"}],\"rejected_images\":[]}"));
+        server.expect(requestTo(PERSONS + "/user-7/faces"))
+                .andRespond(error(HttpStatus.UNPROCESSABLE_CONTENT, "registration_failed",
+                        "{\"rejected_images\":[{\"index\":0,\"reason\":\"low_quality\"}]}"));
+        server.expect(requestTo(PERSONS + "/user-7/faces"))
+                .andRespond(error(HttpStatus.CONFLICT, "person_face_limit_exceeded", "{}"));
+
+        assertThat(client.addFaces("user-7", IMAGES).faceIds()).containsExactly("f3");
+        assertThat(client.addFaces("user-7", IMAGES).rejectedImages())
+                .containsExactly(new RejectedImage(1, "照片模糊或光线不佳，请重拍"));
+        assertThatThrownBy(() -> client.addFaces("user-7", IMAGES))
+                .isInstanceOfSatisfying(InsightFaceApiException.class,
+                        exception -> assertThat(exception.is(409, "person_face_limit_exceeded")).isTrue());
+    }
+
+    @Test
+    @DisplayName("删除样本：204、404 face_not_found、404 person_not_found 分别对应三种结果")
+    void deleteFace() {
+        String url = PERSONS + "/user-7/faces/f1";
+        server.expect(requestTo(url)).andExpect(method(HttpMethod.DELETE)).andRespond(withStatus(HttpStatus.NO_CONTENT));
+        server.expect(requestTo(url)).andRespond(error(HttpStatus.NOT_FOUND, "face_not_found", "{}"));
+        server.expect(requestTo(url)).andRespond(error(HttpStatus.NOT_FOUND, "person_not_found", "{}"));
+
+        assertThat(client.deleteFace("user-7", "f1")).isEqualTo(DeleteFaceResult.DELETED);
+        assertThat(client.deleteFace("user-7", "f1")).isEqualTo(DeleteFaceResult.FACE_NOT_FOUND);
+        assertThat(client.deleteFace("user-7", "f1")).isEqualTo(DeleteFaceResult.PERSON_NOT_FOUND);
     }
 
     @Test

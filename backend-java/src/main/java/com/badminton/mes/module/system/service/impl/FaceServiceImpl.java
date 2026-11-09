@@ -1,7 +1,10 @@
 package com.badminton.mes.module.system.service.impl;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -14,6 +17,7 @@ import com.badminton.mes.module.system.client.InsightFaceClient;
 import com.badminton.mes.module.system.client.InsightFaceModels.EnrollResult;
 import com.badminton.mes.module.system.client.InsightFaceModels.FaceSample;
 import com.badminton.mes.module.system.client.InsightFaceModels.RejectedImage;
+import com.badminton.mes.module.system.client.InsightFaceModels.SearchMatch;
 import com.badminton.mes.module.system.config.InsightFaceProperties;
 import com.badminton.mes.module.system.constants.SystemErrorCodeConstants;
 import com.badminton.mes.module.system.controller.vo.FaceEnrollRespVO;
@@ -30,7 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 人脸登录注册与样本管理服务实现，处理顺序见规划第 4.4、4.5、4.8 节。
+ * 人脸登录注册、识别与样本管理服务实现，处理顺序见规划第 4.3～4.8 节。
  *
  * @author xxy-lh
  * @date 2026/11/09
@@ -118,16 +122,98 @@ public class FaceServiceImpl implements FaceService {
     @Override
     public void removeEnrollment(Long userId) {
         withUserLock(userId, () -> {
-            String personId = personIdOf(userId);
-            // 先删 Person：失败时抛 C0001 / C0200，绑定保持不变，用户可以重试
-            insightFaceClient.deletePerson(personId);
-            faceBindingRepository.findByUserIdAndDeletedFalse(userId).ifPresent(binding -> {
-                binding.setDeleted(true);
-                faceBindingRepository.saveAndFlush(binding);
-                logger.info("[人脸登录] 已关闭, userId: {}, personId: {}", userId, binding.getPersonId());
-            });
+            doRemoveEnrollment(userId);
             return null;
         });
+    }
+
+    @Override
+    public FaceBindingEntity recognize(FaceImage image) {
+        List<SearchMatch> matches;
+        try {
+            matches = insightFaceClient.search(image);
+        } catch (InsightFaceApiException exception) {
+            // 422：照片里没有人脸(face_not_found)或无法解码(invalid_image)，和「没认出是谁」分开提示
+            if (exception.getStatus() == 422) {
+                logger.info("[人脸登录] 照片不合格, code: {}", exception.getCode());
+                throw new ServiceException(SystemErrorCodeConstants.FACE_IMAGE_REJECTED);
+            }
+            throw insightFaceClient.unexpected("搜索", exception);
+        }
+
+        List<SearchMatch> candidates = bestPerPerson(matches);
+        if (candidates.isEmpty()) {
+            throw reject("没有候选人", null, null);
+        }
+        SearchMatch first = candidates.getFirst();
+        SearchMatch second = candidates.size() > 1 ? candidates.get(1) : null;
+        if (first.similarity() < properties.getThreshold()) {
+            throw reject("第一名低于判定阈值", first, second);
+        }
+        // 只有一个候选人员时不做分差校验
+        if (second != null && first.similarity() - second.similarity() < properties.getMargin()) {
+            throw reject("与第二名分差不足", first, second);
+        }
+
+        FaceBindingEntity binding = faceBindingRepository
+                .findByCollectionIdAndPersonIdAndDeletedFalse(properties.getCollectionId(), first.personId())
+                .orElseThrow(() -> reject("Person 没有有效绑定", first, second));
+        if (!String.valueOf(binding.getUserId()).equals(first.externalId())) {
+            throw reject("Person 的 external_id 与绑定用户不一致", first, second);
+        }
+        logger.info("[人脸登录] 识别通过, userId: {}, personId: {}, similarity: {}, second: {}",
+                binding.getUserId(), first.personId(), format(first), format(second));
+        return binding;
+    }
+
+    @Override
+    public void recordLogin(FaceBindingEntity binding) {
+        try {
+            binding.setLastLoginTime(LocalDateTime.now());
+            faceBindingRepository.save(binding);
+        } catch (RuntimeException exception) {
+            logger.warn("[人脸登录] 更新最近登录时间失败, bindingId: {}, message: {}",
+                    binding.getId(), exception.getMessage());
+        }
+    }
+
+    /** 不加锁的关闭流程，供已经持有单用户锁的方法调用。 */
+    private void doRemoveEnrollment(Long userId) {
+        String personId = personIdOf(userId);
+        // 先删 Person：失败时抛 C0001 / C0200，绑定保持不变，可以重试
+        insightFaceClient.deletePerson(personId);
+        faceBindingRepository.findByUserIdAndDeletedFalse(userId).ifPresent(binding -> {
+            binding.setDeleted(true);
+            faceBindingRepository.saveAndFlush(binding);
+            logger.info("[人脸登录] 已关闭, userId: {}, personId: {}", userId, binding.getPersonId());
+        });
+    }
+
+    /**
+     * 按 Person 分组，每人取最高相似度，再按相似度降序。官方结果已按 Person 汇总，
+     * 这一步不改变结果，只是防止同一人的多个样本占据前两名、分差为 0 时把本人拒掉。
+     */
+    private static List<SearchMatch> bestPerPerson(List<SearchMatch> matches) {
+        Map<String, SearchMatch> best = new LinkedHashMap<>();
+        for (SearchMatch match : matches) {
+            best.merge(match.personId(), match,
+                    (current, candidate) -> candidate.similarity() > current.similarity() ? candidate : current);
+        }
+        return best.values().stream()
+                .sorted(Comparator.comparingDouble(SearchMatch::similarity).reversed())
+                .toList();
+    }
+
+    /** 统一的「人脸识别未通过」，具体原因和相似度只写日志，不告诉前端。 */
+    private static ServiceException reject(String reason, SearchMatch first, SearchMatch second) {
+        logger.info("[人脸登录] 未通过, 原因: {}, first: {} {}, second: {} {}", reason,
+                first == null ? "-" : first.personId(), format(first),
+                second == null ? "-" : second.personId(), format(second));
+        return new ServiceException(SystemErrorCodeConstants.FACE_LOGIN_REJECTED);
+    }
+
+    private static String format(SearchMatch match) {
+        return match == null ? "-" : String.format("%.4f", match.similarity());
     }
 
     private FaceEnrollRespVO doEnroll(LoginUser loginUser, List<FaceImage> images, LocalDateTime consentTime) {

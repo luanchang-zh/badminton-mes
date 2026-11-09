@@ -1,10 +1,14 @@
 package com.badminton.mes.module.system.service;
 
+import java.util.List;
+
 import com.badminton.mes.module.system.controller.vo.AuthLoginReqVO;
 import com.badminton.mes.module.system.controller.vo.AuthLoginRespVO;
 import com.badminton.mes.module.system.controller.vo.AuthPasswordReqVO;
 import com.badminton.mes.module.system.controller.vo.AuthProfileRespVO;
 import com.badminton.mes.module.system.controller.vo.AuthRegisterReqVO;
+
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 认证 Service 接口：登录、登出、当前用户、修改本人密码。
@@ -30,6 +34,20 @@ public interface AuthService {
      *         锁定中或账户停用时抛出
      */
     AuthLoginRespVO login(AuthLoginReqVO reqVO);
+
+    /**
+     * 人脸登录：一张照片换取与工号密码登录相同的会话。
+     *
+     * <p>同一来源 IP 在固定窗口内失败达到上限后直接拒绝，不再调用人脸服务。人脸服务不可用或超时
+     * 不计入失败；登录成功也不清零。
+     *
+     * @param images 上传的照片，必须恰好 1 张
+     * @param clientIp 来源 IP，已经过 X-Real-IP 处理
+     * @return token 与用户信息，字段与工号密码登录一致
+     * @throws com.badminton.mes.common.exception.ServiceException 识别未通过 A0200、停用 A0202、
+     *         管理员 A0220、限流 A0501、照片不合格 A0700/A0701、人脸服务异常 C0001/C0200
+     */
+    AuthLoginRespVO faceLogin(List<MultipartFile> images, String clientIp);
 
     /**
      * 注册小程序账号并分配一个允许自助注册的职位。

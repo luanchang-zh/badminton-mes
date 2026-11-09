@@ -23,9 +23,13 @@ public class SecurityWebConfig implements WebMvcConfigurer {
     /** 登录接口路径，唯一免登录白名单 */
     public static final String LOGIN_PATH = "/api/system/auth/login";
 
-    /** 账号密码登录、注册和注册职位查询公开路径 */
+    /** 人脸登录路径 */
+    public static final String FACE_LOGIN_PATH = "/api/system/auth/face_login";
+
+    /** 账号密码登录、人脸登录、注册和注册职位查询公开路径 */
     public static final String[] AUTH_PUBLIC_PATHS = {
             LOGIN_PATH,
+            FACE_LOGIN_PATH,
             "/api/system/auth/register",
             "/api/system/auth/registration_roles"
     };
