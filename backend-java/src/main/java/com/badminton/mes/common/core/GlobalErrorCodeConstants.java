@@ -22,6 +22,10 @@ public final class GlobalErrorCodeConstants {
     public static final ErrorCode JSON_PARSE_ERROR =
             new ErrorCode("A0427", "请求 JSON 解析失败", "请求格式错误，请检查提交内容");
 
+    /** 用户上传文件类型不匹配(附表 3 A0701)：按文件头魔数判断，不信任 Content-Type 和扩展名 */
+    public static final ErrorCode UPLOAD_FILE_TYPE_INVALID =
+            new ErrorCode("A0701", "用户上传文件类型不匹配", "仅支持 JPEG、PNG、WebP 图片");
+
     /** 用户上传文件超出大小限制(附表 3 A0702)：单个文件或单次请求总量超过 multipart 配置 */
     public static final ErrorCode UPLOAD_FILE_TOO_LARGE =
             new ErrorCode("A0702", "用户上传文件太大", "文件过大，单张不超过 5MB，单次合计不超过 16MB");

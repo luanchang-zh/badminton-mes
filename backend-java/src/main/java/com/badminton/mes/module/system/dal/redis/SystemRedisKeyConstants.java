@@ -37,6 +37,15 @@ public final class SystemRedisKeyConstants {
     /** 微信 access_token Key 模板，按 AppID 隔离。 */
     public static final String WECHAT_ACCESS_TOKEN = "mes:system:wechat:access-token:%s";
 
+    /** 人脸登录按来源 IP 的失败计数 Key 模板，参数为 IP；固定窗口，首次失败时设置过期 */
+    public static final String FACE_LOGIN_FAIL_IP = "mes:system:face:fail:ip:%s";
+
+    /** 人脸写操作单用户互斥锁 Key 模板，参数为用户 id，值为加锁方随机令牌 */
+    public static final String FACE_USER_LOCK = "mes:system:face:lock:user:%d";
+
+    /** 人脸单用户锁过期时间，覆盖 InsightFace 最长读超时并留出余量 */
+    public static final Duration FACE_USER_LOCK_TTL = Duration.ofSeconds(60);
+
     /**
      * 构造会话正查 Key。
      *
@@ -83,6 +92,26 @@ public final class SystemRedisKeyConstants {
 
     public static String wechatAccessTokenKey(String appId) {
         return String.format(WECHAT_ACCESS_TOKEN, appId);
+    }
+
+    /**
+     * 构造人脸登录来源 IP 失败计数 Key。
+     *
+     * @param ip 来源 IP
+     * @return Redis Key
+     */
+    public static String faceLoginFailIpKey(String ip) {
+        return String.format(FACE_LOGIN_FAIL_IP, ip);
+    }
+
+    /**
+     * 构造人脸写操作单用户锁 Key。
+     *
+     * @param userId 用户主键
+     * @return Redis Key
+     */
+    public static String faceUserLockKey(Long userId) {
+        return String.format(FACE_USER_LOCK, userId);
     }
 
     private SystemRedisKeyConstants() {

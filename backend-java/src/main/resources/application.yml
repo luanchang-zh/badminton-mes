@@ -55,6 +55,24 @@ mes:
       read-timeout: ${MES_WECHAT_READ_TIMEOUT:5s}
       bind-ticket-ttl: ${MES_WECHAT_BIND_TICKET_TTL:5m}
       bind-result-ttl: ${MES_WECHAT_BIND_RESULT_TTL:10m}
+  insightface:
+    # Docker 部署经 mes-face 网络访问 http://insightface:8080；宿主机直接运行后端时走本机调试端口
+    base-url: ${MES_INSIGHTFACE_BASE_URL:http://127.0.0.1:18097}
+    # 与 InsightFace 的 INSIGHTFACE_API_KEY 一致；人脸服务关闭认证时留空，不发送 Authorization 头
+    api-key: ${MES_INSIGHTFACE_API_KEY:}
+    collection-id: ${MES_INSIGHTFACE_COLLECTION_ID:course_users}
+    # MES 判定阈值：发会话前由 MES 自己比较 similarity，修改后重启即生效
+    threshold: ${MES_INSIGHTFACE_THRESHOLD:0.4}
+    # 召回阈值：每次搜索随请求传给 InsightFace，用于多返回候选计算分差，必须低于 threshold
+    recall-threshold: ${MES_INSIGHTFACE_RECALL_THRESHOLD:0.2}
+    margin: ${MES_INSIGHTFACE_MARGIN:0.05}
+    # 每人样本上限：MES 在锁内预校验，同时写入 Collection 的 max_faces_per_person 作为存储兜底
+    max-faces-per-person: ${MES_INSIGHTFACE_MAX_FACES:5}
+    connect-timeout: ${MES_INSIGHTFACE_CONNECT_TIMEOUT:3s}
+    read-timeout: ${MES_INSIGHTFACE_READ_TIMEOUT:30s}
+    face-login:
+      ip-fail-max: ${MES_FACE_LOGIN_IP_FAIL_MAX:20}
+      ip-fail-window: ${MES_FACE_LOGIN_IP_FAIL_WINDOW:15m}
   erp:
     # mock: 使用内置演示数据；remote: 通过 HTTP 读取真实 ERP 数据
     mode: ${MES_ERP_MODE:mock}

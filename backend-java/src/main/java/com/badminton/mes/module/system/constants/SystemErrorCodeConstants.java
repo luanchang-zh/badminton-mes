@@ -93,6 +93,62 @@ public final class SystemErrorCodeConstants {
     public static final ErrorCode WECHAT_USER_ALREADY_BOUND =
             new ErrorCode("A0111", "MES 用户已绑定其他微信身份", "该工号已绑定其他微信，请先解除绑定");
 
+    /** 人脸登录未通过：无候选、分数不足或与第二名过近统一提示，不泄露库中是否有此人 */
+    public static final ErrorCode FACE_LOGIN_REJECTED =
+            new ErrorCode("A0200", "人脸识别未通过", "人脸识别未通过，请重试或改用密码登录");
+
+    /** 管理员账号禁止人脸登录(无活体检测的补偿措施) */
+    public static final ErrorCode FACE_LOGIN_ADMIN_FORBIDDEN =
+            new ErrorCode("A0220", "管理员账号禁止人脸登录", "管理员账号请使用密码登录");
+
+    /** 同一来源 IP 人脸登录失败次数超限 */
+    public static final ErrorCode FACE_LOGIN_TOO_FREQUENT =
+            new ErrorCode("A0501", "人脸登录失败次数超限", "尝试过于频繁，请 15 分钟后再试");
+
+    /** 同一用户的人脸写操作正在进行(单用户 Redis 锁未获取到) */
+    public static final ErrorCode FACE_OPERATION_IN_PROGRESS =
+            new ErrorCode("A0503", "人脸操作正在进行", "上一次操作尚未完成，请稍后再试");
+
+    /** 已存在有效人脸绑定，不能重复注册 */
+    public static final ErrorCode FACE_ALREADY_ENROLLED =
+            new ErrorCode("A0111", "已注册人脸登录", "已经注册，请追加照片或先关闭人脸登录");
+
+    /** 管理员账号禁止注册人脸，HTTP 映射 403 */
+    public static final ErrorCode FACE_ENROLL_ADMIN_FORBIDDEN =
+            new ErrorCode("A0301", "管理员账号禁止注册人脸", "管理员账号不能注册人脸登录");
+
+    /** 未注册人脸时执行追加、删除样本等操作 */
+    public static final ErrorCode FACE_NOT_ENROLLED =
+            new ErrorCode("A0440", "尚未注册人脸", "尚未注册人脸，请先注册");
+
+    /** 要删除的人脸样本不存在 */
+    public static final ErrorCode FACE_SAMPLE_NOT_FOUND =
+            new ErrorCode("A0402", "人脸样本不存在", "样本不存在或已删除，请刷新后重试");
+
+    /** 人脸样本数量达到上限 */
+    public static final ErrorCode FACE_SAMPLE_LIMIT =
+            new ErrorCode("A0425", "人脸样本数量超限", "样本数量已达上限");
+
+    /** 登录照片中没有可用人脸或无法解码 */
+    public static final ErrorCode FACE_IMAGE_REJECTED =
+            new ErrorCode("A0700", "照片不合格", "照片不合格，请重新拍摄，并保证画面中只有本人");
+
+    /** 注册人脸前未勾选个人敏感信息处理同意 */
+    public static final ErrorCode FACE_CONSENT_REQUIRED =
+            new ErrorCode("A0400", "未同意人脸信息处理说明", "请先阅读并同意人脸信息处理说明");
+
+    /** 上传照片张数不符合接口要求 */
+    public static final ErrorCode FACE_IMAGE_COUNT_INVALID =
+            new ErrorCode("A0400", "人脸照片张数不符合要求", "照片张数不符合要求，请按提示重新拍摄");
+
+    /** InsightFace 连接失败、认证失败或返回 5xx */
+    public static final ErrorCode FACE_SERVICE_UNAVAILABLE =
+            new ErrorCode("C0001", "调用人脸服务失败", "人脸服务暂时不可用，请稍后重试或使用密码登录");
+
+    /** InsightFace 读超时 */
+    public static final ErrorCode FACE_SERVICE_TIMEOUT =
+            new ErrorCode("C0200", "人脸服务响应超时", "人脸服务响应超时，请稍后重试或使用密码登录");
+
     private SystemErrorCodeConstants() {
     }
 }
