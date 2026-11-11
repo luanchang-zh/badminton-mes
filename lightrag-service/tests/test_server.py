@@ -38,8 +38,8 @@ def test_print_routes_lists_two_tenants(tmp_path: Path) -> None:
     )
 
     assert code == EXIT_OK
-    assert "[user_1] 33 条路由" in output
-    assert "[user_2] 33 条路由" in output
+    assert "[user_1] 34 条路由" in output
+    assert "[user_2] 34 条路由" in output
     assert "/tenant/user_1/documents/upload" in output
     assert "/tenant/user_2/documents/upload" in output
 

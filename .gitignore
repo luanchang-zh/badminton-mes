@@ -307,6 +307,7 @@ scripts/*
 !scripts/stop-miniapp-lan-proxy.ps1
 !scripts/start-wechat-clash-relay.ps1
 !scripts/stop-wechat-clash-relay.ps1
+!scripts/start-knowledge-local.ps1
 
 .codex_tmp/
 *.docx

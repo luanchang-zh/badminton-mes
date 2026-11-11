@@ -48,6 +48,25 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(RagDocumentController.class)
 class RagDocumentControllerTest {
 
+    @Test
+    void downloadsExactUtf8TextWithPrivateCachePolicy() throws Exception {
+        var document = new com.badminton.mes.module.rag.client.dto.RagDocumentContent("doc-a", "资料.md", "原文正文");
+        when(ragDocumentService.readDocument("doc-a")).thenReturn(document);
+        mockMvc.perform(get("/api/rag/documents/doc-a/content"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(
+                        "原文正文".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void versionUploadsUseTheSameTextValidationAsNewUploads() throws Exception {
+        var file = new MockMultipartFile("file", "new.md", "text/markdown", "新版".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        when(ragDocumentService.uploadVersion("doc-a", "new.md", "新版")).thenReturn("track-new");
+        mockMvc.perform(multipart("/api/rag/documents/doc-a/versions").file(file))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data").value("track-new"));
+    }
+
     @Autowired
     private MockMvc mockMvc;
 

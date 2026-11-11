@@ -3,6 +3,7 @@ package com.badminton.mes.module.rag.service;
 import java.util.List;
 
 import com.badminton.mes.module.rag.client.dto.RagDocumentDTO;
+import com.badminton.mes.module.rag.client.dto.RagDocumentContent;
 
 /**
  * 知识库文档 Service。
@@ -30,6 +31,12 @@ public interface RagDocumentService {
      * @return 文档列表，状态已归一化
      */
     List<RagDocumentDTO> listDocuments();
+
+    /** Read original text within the current user's tenant. */
+    RagDocumentContent readDocument(String docId);
+
+    /** Import a new version while retaining the original document. */
+    String uploadVersion(String docId, String fileSource, String content);
 
     /**
      * 删除当前租户下的指定文档。

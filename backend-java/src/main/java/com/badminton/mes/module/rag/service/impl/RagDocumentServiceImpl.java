@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.badminton.mes.module.rag.client.RagClient;
 import com.badminton.mes.module.rag.client.dto.RagDocumentDTO;
+import com.badminton.mes.module.rag.client.dto.RagDocumentContent;
 import com.badminton.mes.module.rag.service.RagDocumentService;
 import com.badminton.mes.module.rag.service.RagTenantResolver;
 
@@ -52,6 +53,24 @@ public class RagDocumentServiceImpl implements RagDocumentService {
     public List<RagDocumentDTO> listDocuments() {
         String tenantId = tenantResolver.resolveTenantId();
         return ragClient.listDocuments(tenantId);
+    }
+
+    @Override
+    public RagDocumentContent readDocument(String docId) {
+        return ragClient.readDocument(tenantResolver.resolveTenantId(), docId);
+    }
+
+    @Override
+    public String uploadVersion(String docId, String fileSource, String content) {
+        String tenantId = tenantResolver.resolveTenantId();
+        ragClient.readDocument(tenantId, docId);
+        int dot = fileSource.lastIndexOf('.');
+        String suffix = "-v" + java.time.LocalDateTime.now().format(
+                java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+                + "-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+        String versionedName = dot > 0 ? fileSource.substring(0, dot) + suffix + fileSource.substring(dot)
+                : fileSource + suffix;
+        return ragClient.uploadText(tenantId, versionedName, content);
     }
 
     @Override

@@ -63,6 +63,7 @@ public class RagStreamClient {
      * @param objectMapper 项目统一的 JSON 映射器
      * @param properties   上游配置
      */
+    @org.springframework.beans.factory.annotation.Autowired
     public RagStreamClient(ObjectMapper objectMapper, RagProperties properties) {
         this(objectMapper, properties,
                 RagRestClientFactory.build(properties, properties.getStreamReadTimeout()));

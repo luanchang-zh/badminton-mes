@@ -3,6 +3,7 @@ package com.badminton.mes.module.rag.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -32,6 +33,24 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class RagDocumentServiceImplTest {
+
+    @Test
+    void downloadUsesOnlyTheResolvedTenant() {
+        when(tenantResolver.resolveTenantId()).thenReturn(TENANT);
+        var content = new com.badminton.mes.module.rag.client.dto.RagDocumentContent("doc-a", "资料.md", "原文");
+        when(ragClient.readDocument(TENANT, "doc-a")).thenReturn(content);
+        assertThat(service.readDocument("doc-a")).isEqualTo(content);
+    }
+
+    @Test
+    void newVersionPreservesOriginalAndUsesADistinctFileSource() {
+        when(tenantResolver.resolveTenantId()).thenReturn(TENANT);
+        service.uploadVersion("doc-a", "工艺.md", "新版正文");
+        verify(ragClient).readDocument(TENANT, "doc-a");
+        verify(ragClient).uploadText(eq(TENANT),
+                org.mockito.ArgumentMatchers.matches("工艺-v[0-9]{14}-[a-f0-9]{8}\\.md"), eq("新版正文"));
+        verify(ragClient, org.mockito.Mockito.never()).deleteDocument(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
 
     /** 解析器返回的租户 */
     private static final String TENANT = "ws_001";

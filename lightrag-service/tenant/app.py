@@ -14,7 +14,7 @@ from typing import Any, Iterator, Sequence
 from tenant.lifespan import build_lifespan
 
 # 三个工厂产生的路由条数，用于自检与回归断言；与 v1.5.7 对齐。
-DOCUMENT_ROUTE_COUNT = 18
+DOCUMENT_ROUTE_COUNT = 19
 QUERY_ROUTE_COUNT = 3
 GRAPH_ROUTE_COUNT = 12
 ROUTES_PER_TENANT = DOCUMENT_ROUTE_COUNT + QUERY_ROUTE_COUNT + GRAPH_ROUTE_COUNT
@@ -55,6 +55,9 @@ def register_tenant_routes(
 
     for context in contexts:
         prefix = f"/tenant/{context.user_id}"
+        from tenant.documents import create_content_router
+        app.include_router(create_content_router(context.rag, api_key), prefix=prefix,
+                           tags=[f"{context.user_id}-documents"])
         app.include_router(
             create_document_routes(context.rag, context.doc_manager, api_key),
             prefix=prefix,
