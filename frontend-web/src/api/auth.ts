@@ -18,6 +18,30 @@ export interface LoginResult {
   roleCodes: string[]
 }
 
+export interface RegistrationRole {
+  id: number
+  roleCode: string
+  roleName: string
+  remark: string | null
+  status: number
+}
+
+export interface RegisterParams {
+  userNo: string
+  userName: string
+  password: string
+  roleId: number
+}
+
+/** 自助注册仅展示后端允许选择的职位。 */
+export function getRegistrationRoles(): Promise<RegistrationRole[]> {
+  return get('/system/auth/registration_roles')
+}
+
+export function registerAccount(data: RegisterParams): Promise<number> {
+  return post('/system/auth/register', data)
+}
+
 export interface AuthProfile {
   userId: number
   userNo: string

@@ -10,6 +10,7 @@ import { usePermission } from '@/composables/usePermission'
 import { findMenuChain, menuRoutes } from '@/router/routes'
 import SidebarMenuItem from './components/SidebarMenuItem.vue'
 import TagsView from './components/TagsView.vue'
+import FaceEnrollment from '@/components/face/FaceEnrollment.vue'
 
 defineOptions({ name: 'BasicLayout' })
 
@@ -17,6 +18,7 @@ const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
 const userStore = useUserStore()
+const faceEnrollment = ref<InstanceType<typeof FaceEnrollment>>()
 const { hasRole } = usePermission()
 
 /** 一级菜单按角色/hidden 过滤，子级过滤在 SidebarMenuItem 内递归处理 */
@@ -96,6 +98,10 @@ async function handleChangePassword() {
 }
 
 async function handleUserCommand(command: string | number | object) {
+  if (command === 'face') {
+    void faceEnrollment.value?.open()
+    return
+  }
   if (command === 'password') {
     openPasswordDialog()
     return
@@ -158,6 +164,7 @@ async function handleUserCommand(command: string | number | object) {
                 角色：{{ userStore.roleCodes.join(' / ') || '-' }}
               </el-dropdown-item>
               <el-dropdown-item divided command="password">修改密码</el-dropdown-item>
+              <el-dropdown-item command="face">人脸登录设置</el-dropdown-item>
               <el-dropdown-item command="logout">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -175,6 +182,8 @@ async function handleUserCommand(command: string | number | object) {
         </router-view>
       </el-main>
     </el-container>
+
+    <FaceEnrollment ref="faceEnrollment" />
 
     <el-dialog
       v-model="passwordVisible"

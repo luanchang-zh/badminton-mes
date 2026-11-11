@@ -207,8 +207,7 @@ public class FaceServiceImpl implements FaceService {
     @Override
     public void recordLogin(FaceBindingEntity binding) {
         try {
-            binding.setLastLoginTime(LocalDateTime.now());
-            faceBindingRepository.save(binding);
+            faceBindingRepository.updateLastLoginTimeIfActive(binding.getId(), LocalDateTime.now());
         } catch (RuntimeException exception) {
             logger.warn("[人脸登录] 更新最近登录时间失败, bindingId: {}, message: {}",
                     binding.getId(), exception.getMessage());

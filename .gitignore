@@ -19,6 +19,24 @@
 /java-dev-manual-huangshan/
 /postman-tests/
 
+# 临时交接记录只保留在本机。
+/HANDOFF.md
+
+# 截图、设计参考与未使用图片；正式页面依赖的素材显式保留。
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.tif
+*.tiff
+*.avif
+*.heic
+/frontend-web/design/assets/
+!/frontend-web/src/assets/images/login-reference-background.webp
+!/frontend-web/src/assets/images/login-shuttlecock.webp
+
 # ==============================================================================
 # 操作系统与文件管理器生成文件
 # ==============================================================================

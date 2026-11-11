@@ -1,0 +1,23 @@
+Use case: ui-mockup.
+Asset type: one complete, high-fidelity desktop website login-page design mockup, landscape 16:10 composition, viewed straight-on as a crisp browser-content screenshot, no device frame.
+Primary request: Redesign the login page for the Chinese manufacturing execution system "羽毛球 MES". The client rejected a dark-blue screen and a shuttlecock model. They want an ordinary, well-designed enterprise product, with a product introduction on the left over a simple background and a clean login form on the right.
+Visual direction: restrained, practical, mature Chinese enterprise software design. Near-white and light neutral gray surfaces, charcoal text, a modest natural green as the sole action color. Main white #FFFFFF, left light neutral gray #F3F5F3, text #252C28, muted text #69736C, action green #347455. Generous whitespace, subtle 1px control borders, small 6px corner radius on controls, no outer rounded container. No dark-colored panels.
+Composition: full-width flat page, approximately 56% left product-introduction area and 44% white right login area. Top-left a simple typographic product name, no invented logo. Left introductory content is left-aligned and carefully spaced, headline about 42px, paragraph 16px, three understated inline feature labels separated by short gray dividers. Left background is a softly lit, photorealistic contemporary manufacturing workshop interior: white structural columns, diffuse daylight, clean pale-gray floors, unobtrusive orderly production lines, quiet and human-scale rather than sci-fi. The architectural photograph is a background only, most visible in the lower half, dissolving gently into the light neutral backdrop behind the upper text. No foreground hero object. Do not make a 3D illustration or a diagram. The right-side 360px-wide form sits directly on white without a card, vertically centered, heading 28px, form labels 14px, 48px-high outlined fields and a full-width green primary button. Professional Chinese sans-serif typography, consistent weights, very readable text, precise alignment.
+Exact text to render, verbatim Chinese:
+Top-left product name: "羽毛球 MES"
+Product subtitle: "生产制造执行系统"
+Left headline: "生产进度，一目了然。"
+Left paragraph: "从工单下达到成品追溯，统一管理生产、工艺与质量。"
+Left feature labels: "生产计划" "现场执行" "质量追溯"
+Right heading: "登录工作台"
+Right supporting line: "请输入您的工号和密码"
+First field label: "工号"
+First field placeholder: "请输入工号"
+Second field label: "密码"
+Second field placeholder: "请输入密码"
+Small assistance link: "登录遇到问题？"
+Primary button: "登 录"
+Below form muted text: "想先了解系统？" followed by green text link "使用演示账号"
+Small bottom footer: "账号由企业统一管理"
+Constraints: one finished realistic UI design, not a moodboard, not several alternatives. The layout must be practical to implement with Vue and Element Plus. Keep the product introduction concise and the login dominant as a task. Text is sharp and high contrast. The background must remain quiet and the right form pure white.
+Avoid: any shuttlecock, feather, racket, sporting equipment, product modeling, technical product diagram, CSS-like geometric model, dark blue, navy, purple, neon, gradients as decoration, glow, glassmorphism, floating dashboards, fake charts, decorative data, fabricated statistics, badges, abstract swirls, giant spheres, leaf or plant decoration, people, testimonials, social login, registration, marketing buttons, browser chrome, watermarks.

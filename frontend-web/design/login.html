@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>登录页设计稿 · 羽毛球 MES</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./login.css" />
+    <script src="./login.js" defer></script>
+  </head>
+  <body>
+    <!-- Design system: navy #143b58, blue #2264d1, white #fff, cool gray #f4f7fa.
+         Existing project Chinese font stack; 48/30/16/14/12px type; 8px rhythm.
+         Desktop split composition; one static product construction study.
+         This review artifact uses native controls. Integration maps them to the
+         existing Element Plus form/input/button and existing user-store login. -->
+    <main class="login-shell">
+      <section class="brand-panel" aria-labelledby="brand-heading">
+        <header class="brand">
+          <div class="wordmark">羽毛球 <span>MES</span></div>
+          <div class="brand-description">生产制造执行系统</div>
+        </header>
+
+        <div class="brand-story">
+          <h1 id="brand-heading">让每一道工序，<br />清晰可见。</h1>
+          <p>从生产计划到成品追溯，<br />连接制造现场的每一步。</p>
+        </div>
+
+        <figure class="product-study" aria-label="羽毛球结构示意：羽片、扎线与球头">
+          <div class="construction-circle" aria-hidden="true"></div>
+          <div class="construction-axis" aria-hidden="true"></div>
+          <div class="shuttlecock" aria-hidden="true">
+            <div class="feathers">
+              <i style="--angle: -42deg; --depth: 1"></i>
+              <i style="--angle: -36.4deg; --depth: 2"></i>
+              <i style="--angle: -30.8deg; --depth: 3"></i>
+              <i style="--angle: -25.2deg; --depth: 4"></i>
+              <i style="--angle: -19.6deg; --depth: 5"></i>
+              <i style="--angle: -14deg; --depth: 6"></i>
+              <i style="--angle: -8.4deg; --depth: 7"></i>
+              <i style="--angle: -2.8deg; --depth: 8"></i>
+              <i style="--angle: 2.8deg; --depth: 9"></i>
+              <i style="--angle: 8.4deg; --depth: 10"></i>
+              <i style="--angle: 14deg; --depth: 11"></i>
+              <i style="--angle: 19.6deg; --depth: 12"></i>
+              <i style="--angle: 25.2deg; --depth: 13"></i>
+              <i style="--angle: 30.8deg; --depth: 14"></i>
+              <i style="--angle: 36.4deg; --depth: 15"></i>
+              <i style="--angle: 42deg; --depth: 16"></i>
+            </div>
+            <div class="quills"></div>
+            <div class="thread thread--top"></div>
+            <div class="thread thread--bottom"></div>
+            <div class="cork"></div>
+            <div class="collar"></div>
+          </div>
+          <figcaption class="study-label study-label--feather"><span>羽片</span><i></i></figcaption>
+          <div class="study-label study-label--binding" aria-hidden="true"><i></i><span>扎线</span></div>
+          <div class="study-label study-label--cork" aria-hidden="true"><i></i><span>球头</span></div>
+          <div class="study-caption">每一处细节，都有标准。</div>
+        </figure>
+
+        <footer class="brand-footer">
+          <div class="capability">生产协同</div>
+          <div class="capability">质量管理</div>
+          <div class="capability">全程追溯</div>
+        </footer>
+      </section>
+
+      <section class="auth-panel" aria-labelledby="login-heading">
+        <div class="auth-topline">企业管理工作台</div>
+        <div class="auth-content">
+          <header class="form-header">
+            <h2 id="login-heading">欢迎登录</h2>
+            <p>请输入工号和密码，进入工作台。</p>
+          </header>
+
+          <form id="login-form" novalidate>
+            <div class="field-group">
+              <label for="user-no">工号</label>
+              <div class="input-shell" id="user-shell">
+                <img src="./assets/user.svg" width="19" height="19" alt="" />
+                <input id="user-no" name="userNo" type="text" autocomplete="username" placeholder="请输入工号" required aria-describedby="user-error" />
+              </div>
+              <p class="field-error" id="user-error" aria-live="polite"></p>
+            </div>
+
+            <div class="field-group">
+              <label for="password">密码</label>
+              <div class="input-shell" id="password-shell">
+                <img src="./assets/lock.svg" width="19" height="19" alt="" />
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required aria-describedby="password-error" />
+                <button class="password-toggle" id="password-toggle" type="button" aria-label="显示密码" aria-pressed="false">显示</button>
+              </div>
+              <p class="field-error" id="password-error" aria-live="polite"></p>
+              <p class="caps-hint" id="caps-hint" hidden>大写锁定已开启</p>
+            </div>
+
+            <div class="form-assistance">
+              <span>请使用企业分配的账号</span>
+              <button class="text-button" id="help-toggle" type="button" aria-expanded="false" aria-controls="account-help">登录遇到问题？</button>
+            </div>
+            <div class="account-help" id="account-help" hidden>忘记工号、密码或账号被停用时，请联系系统管理员处理。</div>
+
+            <button class="submit-button" id="login-submit" type="submit">
+              <span id="submit-label">登录工作台</span>
+              <span class="submit-arrow" aria-hidden="true"></span>
+            </button>
+          </form>
+
+          <div class="demo-entry">
+            <span>想先了解系统？</span>
+            <button class="text-button" id="fill-demo" type="button">使用演示账号</button>
+          </div>
+          <div class="account-note">
+            <img src="./assets/lock.svg" width="14" height="14" alt="" />
+            <p>账号权限由企业统一管理<br />请妥善保管您的登录信息</p>
+          </div>
+        </div>
+
+        <footer class="auth-footer"><span>羽毛球 MES</span><span>让制造现场井然有序</span></footer>
+      </section>
+    </main>
+
+    <aside class="review-bar" aria-label="设计稿说明">
+      <span class="review-tag">设计预览</span>
+      <span>工业蓝 / 桌面版</span>
+      <span class="review-divider" aria-hidden="true"></span>
+      <a href="/login?redirect=/dashboard">查看当前登录页</a>
+    </aside>
+    <div class="preview-feedback" id="preview-feedback" role="status" hidden></div>
+  </body>
+</html>

@@ -11,11 +11,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -96,6 +98,23 @@ public class GlobalExceptionHandler {
         String detail = exception.getParameterName() + ": 必填查询参数不能为空";
         logger.warn("[查询参数缺失] {}", detail);
         return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, detail);
+    }
+
+    /** 请求参数类型不符（例如 consent 不是布尔值）时返回参数错误。 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<CommonResult<Void>> handleArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException exception) {
+        String detail = exception.getName() + ": 参数类型不正确";
+        logger.warn("[参数类型错误] {}", detail);
+        return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, detail);
+    }
+
+    /** 上传接口收到 JSON 等不支持的请求类型时返回统一参数错误。 */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<CommonResult<Void>> handleMediaTypeNotSupportedException(
+            HttpMediaTypeNotSupportedException exception) {
+        logger.warn("[请求类型不支持] {}", exception.getContentType());
+        return buildResponse(GlobalErrorCodeConstants.PARAM_ERROR, "请求的 Content-Type 不符合接口要求");
     }
 
     /**

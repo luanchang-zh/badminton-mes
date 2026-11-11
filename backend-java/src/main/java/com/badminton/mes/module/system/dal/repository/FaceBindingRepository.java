@@ -1,10 +1,15 @@
 package com.badminton.mes.module.system.dal.repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import com.badminton.mes.module.system.dal.entity.FaceBindingEntity;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 人脸登录绑定 Repository。
@@ -30,4 +35,14 @@ public interface FaceBindingRepository extends JpaRepository<FaceBindingEntity, 
      * @return 有效绑定
      */
     Optional<FaceBindingEntity> findByCollectionIdAndPersonIdAndDeletedFalse(String collectionId, String personId);
+
+    /** 只更新仍有效的绑定，避免登录结束时回写旧实体，覆盖并发关闭产生的删除标记。 */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE FaceBindingEntity binding
+            SET binding.lastLoginTime = :loginTime
+            WHERE binding.id = :id AND binding.deleted = false
+            """)
+    int updateLastLoginTimeIfActive(@Param("id") Long id, @Param("loginTime") LocalDateTime loginTime);
 }

@@ -2,6 +2,9 @@ import axios, { AxiosError } from 'axios'
 import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 
+/** 自动采样的中间错误由取景区展示，避免每一帧弹出通知。 */
+export type RequestOptions = AxiosRequestConfig & { silent?: boolean }
+
 /**
  * 与后端 CommonResult<T> 对齐的统一响应结构。
  * code 为 5 位字符串错误码，成功固定 '00000'。
@@ -152,13 +155,17 @@ service.interceptors.response.use(
     const body = response.data as ApiResult
     // 后端即使返回 HTTP 200，也可能通过业务 code 表示失败，因此不能只判断 HTTP 状态。
     if (body.code !== SUCCESS_CODE) {
-      ElMessage.error(body.userTip || body.message || '请求失败')
+      if (!(response.config as RequestOptions).silent) ElMessage.error(body.userTip || body.message || '请求失败')
       return Promise.reject(new ApiError(body))
     }
     // 拦截器直接解包 data，调用方拿到的即业务数据
     return body.data as never
   },
   (error: AxiosError) => {
+    if (axios.isCancel(error)) return Promise.reject(error)
+    const notifyError = (message: string) => {
+      if (!(error.config as RequestOptions | undefined)?.silent) ElMessage.error(message)
+    }
     const status = error.response?.status
     const body = error.response?.data
 
@@ -166,19 +173,19 @@ service.interceptors.response.use(
     if (isApiResult(body)) {
       // 优先使用后端统一错误结构，保证用户提示、错误码和异常对象来自同一份响应。
       if (status === 401 || body.code === UNAUTHORIZED_CODE) {
-        ElMessage.error(body.userTip || '登录状态已失效，请重新登录')
+        notifyError(body.userTip || '登录状态已失效，请重新登录')
         redirectToLogin()
       } else {
-        ElMessage.error(body.userTip || body.message || `请求失败（HTTP ${status}）`)
+        notifyError(body.userTip || body.message || `请求失败（HTTP ${status}）`)
       }
       return Promise.reject(new ApiError(body))
     }
 
     if (status === 401) {
-      ElMessage.error('登录状态已失效，请重新登录')
+      notifyError('登录状态已失效，请重新登录')
       redirectToLogin()
     } else {
-      ElMessage.error(status ? `请求失败（HTTP ${status}）` : '网络异常，请检查连接')
+      notifyError(status ? `请求失败（HTTP ${status}）` : '网络异常，请检查连接')
     }
     return Promise.reject(error)
   },
@@ -190,7 +197,7 @@ export function get<T>(url: string, params?: object, config?: AxiosRequestConfig
   return service.get(url, { params, ...config }) as Promise<T>
 }
 
-export function post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+export function post<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
   // POST 请求保留统一响应解包和错误拦截链，业务 API 不直接处理 AxiosResponse。
   return service.post(url, data, config) as Promise<T>
 }

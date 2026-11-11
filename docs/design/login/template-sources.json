@@ -1,0 +1,58 @@
+{
+  "retrieved": "2026-11-08",
+  "gallery": "http://127.0.0.1:5173/design/login-templates.html",
+  "templates": [
+    {
+      "id": "A",
+      "name": "shadcn · 整屏双栏",
+      "kind": "图片区与表单各占半屏，布局最简洁。",
+      "url": "https://ui.shadcn.com/view/new-york-v4/login-02",
+      "file": "a-shadcn-login-02.jpg",
+      "recommend": true
+    },
+    {
+      "id": "B",
+      "name": "shadcn · 居中图文卡片",
+      "kind": "浅灰背景中的双栏卡片，整体更紧凑。",
+      "url": "https://ui.shadcn.com/view/new-york-v4/login-04",
+      "file": "b-shadcn-login-04.jpg"
+    },
+    {
+      "id": "C",
+      "name": "Superdesign · 产品介绍与登录",
+      "kind": "左侧介绍产品，右侧白色表单；浅灰青绿配色。",
+      "url": "https://p.superdesign.dev/draft/8c9ceb67-1d60-4fe8-aeeb-0bc12c1242d5",
+      "file": "c-superdesign-product-login.jpg",
+      "recommend": true
+    },
+    {
+      "id": "D",
+      "name": "Superdesign · 暖白与酒红",
+      "kind": "暖色双栏和大标题，视觉更偏编辑风格。",
+      "url": "https://p.superdesign.dev/draft/f9599bc9-b78c-4c26-bb3a-fb38b48e776b",
+      "file": "d-superdesign-atelier.png"
+    },
+    {
+      "id": "E",
+      "name": "shadcn · 简洁居中表单",
+      "kind": "灰白底色、单列登录，突出操作本身。",
+      "url": "https://ui.shadcn.com/view/new-york-v4/login-03",
+      "file": "e-shadcn-login-03.jpg"
+    },
+    {
+      "id": "F",
+      "name": "Superdesign · 白底青绿",
+      "kind": "居中白色卡片，青绿色用于按钮和细节。",
+      "url": "https://p.superdesign.dev/draft/d3219443-d3fb-405f-a9b4-17e36168021b",
+      "file": "f-superdesign-kafkasder.jpg"
+    }
+  ],
+  "checks": {
+    "cards": 6,
+    "loadedPreviews": 6,
+    "horizontalOverflow": false,
+    "lightboxOpenClose": true,
+    "consoleErrors": 0
+  },
+  "superdesignCredits": 0
+}

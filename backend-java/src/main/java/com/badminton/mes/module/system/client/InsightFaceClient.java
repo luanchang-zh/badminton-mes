@@ -3,6 +3,7 @@ package com.badminton.mes.module.system.client;
 import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -95,6 +96,9 @@ public class InsightFaceClient {
 
     private final RestClient restClient;
 
+    /** 登录搜索使用短超时，注册和资料管理继续使用原有超时。 */
+    private final RestClient loginRestClient;
+
     private final ObjectMapper objectMapper;
 
     private final InsightFaceProperties properties;
@@ -110,7 +114,13 @@ public class InsightFaceClient {
      */
     @Autowired
     public InsightFaceClient(InsightFaceProperties properties, ObjectMapper objectMapper) {
-        this(properties, objectMapper, RestClient.builder().requestFactory(createRequestFactory(properties)));
+        this(properties, objectMapper,
+                RestClient.builder().requestFactory(createRequestFactory(properties)),
+                RestClient.builder().requestFactory(createRequestFactory(
+                        properties.getConnectTimeout().compareTo(Duration.ofSeconds(1)) < 0
+                                ? properties.getConnectTimeout() : Duration.ofSeconds(1),
+                        properties.getReadTimeout().compareTo(Duration.ofSeconds(2)) < 0
+                                ? properties.getReadTimeout() : Duration.ofSeconds(2))));
     }
 
     /**
@@ -121,6 +131,11 @@ public class InsightFaceClient {
      * @param builder 已设置请求工厂的 Builder
      */
     InsightFaceClient(InsightFaceProperties properties, ObjectMapper objectMapper, RestClient.Builder builder) {
+        this(properties, objectMapper, builder, builder);
+    }
+
+    private InsightFaceClient(InsightFaceProperties properties, ObjectMapper objectMapper,
+                              RestClient.Builder builder, RestClient.Builder loginBuilder) {
         this.properties = properties;
         this.objectMapper = objectMapper;
         builder.baseUrl(properties.getBaseUrl());
@@ -129,6 +144,11 @@ public class InsightFaceClient {
             builder.defaultHeaders(headers -> headers.set(HttpHeaders.AUTHORIZATION, authorization));
         }
         this.restClient = builder.build();
+        loginBuilder.baseUrl(properties.getBaseUrl());
+        if (StringUtils.hasText(properties.getApiKey())) {
+            loginBuilder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey());
+        }
+        this.loginRestClient = loginBuilder.build();
     }
 
     /**
@@ -242,7 +262,7 @@ public class InsightFaceClient {
         body.part("threshold", String.valueOf(properties.getRecallThreshold()));
         JsonNode response;
         try {
-            response = execute("搜索", restClient.post()
+            response = execute("搜索", loginRestClient.post()
                     .uri("/v1/collections/{collectionId}/search", properties.getCollectionId())
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(body.build()));
@@ -488,13 +508,17 @@ public class InsightFaceClient {
     }
 
     private static JdkClientHttpRequestFactory createRequestFactory(InsightFaceProperties properties) {
+        return createRequestFactory(properties.getConnectTimeout(), properties.getReadTimeout());
+    }
+
+    private static JdkClientHttpRequestFactory createRequestFactory(Duration connectTimeout, Duration readTimeout) {
         // 固定 HTTP/1.1：JDK 默认对 http:// 尝试 h2c 升级，没有必要
         HttpClient httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(properties.getConnectTimeout())
+                .connectTimeout(connectTimeout)
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
-        factory.setReadTimeout(properties.getReadTimeout());
+        factory.setReadTimeout(readTimeout);
         return factory;
     }
 

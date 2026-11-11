@@ -338,14 +338,28 @@ class FaceServiceImplTest {
     }
 
     @Test
+    @DisplayName("记录登录时间：只更新有效绑定，不保存包含旧删除状态的实体")
+    void recordLoginDoesNotOverwriteConcurrentDisable() {
+        FaceBindingEntity staleBinding = binding();
+        when(faceBindingRepository.updateLastLoginTimeIfActive(eq(staleBinding.getId()), any())).thenReturn(0);
+
+        service.recordLogin(staleBinding);
+
+        verify(faceBindingRepository).updateLastLoginTimeIfActive(eq(staleBinding.getId()), any(LocalDateTime.class));
+        verify(faceBindingRepository, never()).save(any());
+        verify(faceBindingRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     @DisplayName("记录登录时间：写库失败不抛异常")
     void recordLoginSwallowsFailure() {
         FaceBindingEntity binding = binding();
-        when(faceBindingRepository.save(binding)).thenThrow(new RuntimeException("db down"));
+        when(faceBindingRepository.updateLastLoginTimeIfActive(eq(binding.getId()), any()))
+                .thenThrow(new RuntimeException("db down"));
 
         service.recordLogin(binding);
 
-        assertThat(binding.getLastLoginTime()).isNotNull();
+        verify(faceBindingRepository).updateLastLoginTimeIfActive(eq(binding.getId()), any(LocalDateTime.class));
     }
 
     @Test

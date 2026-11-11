@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>淡绿衬线登录设计稿 · 羽毛球 MES</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./login-editorial.css" />
+  <script src="./login-editorial.js" defer></script>
+</head>
+<body>
+  <!-- Reference-led review artifact. 50/50 desktop split; sage #edf3ef,
+       deep green #1c695f, ink #193a35; serif display and sans-serif controls.
+       Native form preview maps to the existing Element Plus login/register flow. -->
+  <main class="page">
+    <section class="story" aria-labelledby="story-title">
+      <img class="story__background" src="../src/assets/images/login-assembly-line.webp" width="1122" height="1402" alt="" decoding="async" fetchpriority="high" />
+      <a class="brand" href="/login" aria-label="羽毛球 MES 登录页">
+        <span class="brand__mark icon icon--factory" aria-hidden="true"></span>
+        <strong>羽毛球 MES</strong>
+        <span class="brand__caption">制造有序 · 生产有迹</span>
+      </a>
+      <div class="story__content">
+        <p class="eyebrow">PLAN / PRODUCE / TRACE</p>
+        <h1 id="story-title">让每一道工序，<br />都有迹可循。</h1>
+        <span class="story__rule" aria-hidden="true"></span>
+        <p class="story__description">从一张工单，到一只成品。<br />让计划、执行与质量，在这里清晰衔接。</p>
+        <ul class="features" aria-label="系统功能">
+          <li><span class="feature-icon"><i class="icon icon--task" aria-hidden="true"></i></span><div><h2>有条不紊的生产计划</h2><p>从工单下达到排产，合理安排每一项任务。</p></div></li>
+          <li><span class="feature-icon"><i class="icon icon--process" aria-hidden="true"></i></span><div><h2>实时掌握的现场进度</h2><p>汇集工序与报工信息，随时了解生产状态。</p></div></li>
+          <li><span class="feature-icon"><i class="icon icon--trace" aria-hidden="true"></i></span><div><h2>贯穿全程的质量追溯</h2><p>关联批次与检验记录，每一步都有据可查。</p></div></li>
+        </ul>
+        <p class="story__signature">BADMINTON MES · EVERY STEP COUNTS</p>
+      </div>
+    </section>
+    <section class="auth" aria-labelledby="auth-title">
+      <header class="auth__top">
+        <a class="back-link" href="/login"><span aria-hidden="true">←</span> 返回登录页</a>
+        <button id="top-help" class="help-icon" type="button" aria-label="登录帮助">?</button>
+      </header>
+      <div class="auth__content">
+        <header class="auth__heading">
+          <p class="eyebrow" id="auth-eyebrow">WELCOME BACK</p>
+          <h2 id="auth-title">登录羽毛球 MES</h2>
+          <p id="auth-description">连接制造现场，让每一步生产井然有序。</p>
+        </header>
+        <form id="auth-form" novalidate>
+          <div class="register-only field-row" hidden>
+            <div class="field"><label for="register-name">姓名</label><div class="input-shell"><input id="register-name" name="userName" autocomplete="name" placeholder="请输入姓名" maxlength="64" disabled /></div><p class="error" id="name-error"></p></div>
+            <div class="field"><label for="register-role">职位</label><div class="input-shell"><select id="register-role" name="role" disabled><option value="">请选择职位</option><option>操作工</option><option>班组长</option><option>质检员</option><option>工艺工程师</option></select></div><p class="error" id="role-error"></p></div>
+          </div>
+          <div class="field">
+            <label for="user-no">工号</label>
+            <div class="input-shell"><i class="icon icon--user" aria-hidden="true"></i><input id="user-no" name="userNo" autocomplete="username" placeholder="请输入您的工号" maxlength="32" aria-describedby="user-error" required /></div>
+            <p class="error" id="user-error"></p>
+          </div>
+          <div class="password-fields">
+          <div class="field">
+            <label for="password">登录密码</label>
+            <div class="input-shell"><i class="icon icon--lock" aria-hidden="true"></i><input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" aria-describedby="password-error" required /><button id="toggle-password" type="button" class="password-toggle" aria-label="显示密码" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+            <p class="error" id="password-error"></p>
+          </div>
+          <div class="register-only field" hidden>
+            <label for="confirm-password">确认密码</label>
+            <div class="input-shell"><i class="icon icon--lock" aria-hidden="true"></i><input id="confirm-password" type="password" autocomplete="new-password" placeholder="请再次输入密码" disabled /></div><p class="error" id="confirm-error"></p>
+          </div>
+          </div>
+          <div class="form-options" id="login-options">
+            <label class="remember"><input id="remember" type="checkbox" />记住工号</label>
+            <button id="forgot-password" class="text-button" type="button">忘记密码？</button>
+          </div>
+          <button class="button button--primary" id="submit" type="submit"><span id="submit-label">立即登录</span><span class="arrow" aria-hidden="true">→</span></button>
+          <p id="preview-status" class="preview-status" role="status"></p>
+        </form>
+        <div class="separator"><span id="separator-label">还没有账号？</span></div>
+        <button class="button button--secondary" id="switch-mode" type="button">注册工作账号</button>
+        <p class="register-only registration-note" hidden>请按实际岗位选择职位，账号权限由企业统一管理。</p>
+      </div>
+    </section>
+  </main>
+  <dialog id="help-dialog" aria-labelledby="help-title">
+    <h2 id="help-title">登录帮助</h2><p>首次使用请先注册工作账号。忘记工号或密码时，请联系系统管理员。</p><form method="dialog"><button class="button button--primary">知道了</button></form>
+  </dialog>
+</body>
+</html>

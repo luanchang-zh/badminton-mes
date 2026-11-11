@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import * as authApi from '@/api/auth'
+import * as faceApi from '@/api/face'
 import type { ChangePasswordParams, LoginParams } from '@/api/auth'
 import { MOCK_TOKEN, TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from '@/utils/request'
 
@@ -86,6 +87,19 @@ export const useUserStore = defineStore('user', () => {
     persist()
   }
 
+  /** 仅使用人脸接口返回的服务端会话和权限。 */
+  async function loginWithFace(image: Blob, options: faceApi.FaceLoginRequestOptions = {}) {
+    const result = await faceApi.loginWithFace(image, options)
+    // 超时或离开页面后的响应不得恢复会话。
+    options.signal?.throwIfAborted()
+    token.value = result.token
+    userId.value = result.userId
+    userNo.value = result.userNo
+    userName.value = result.userName
+    roleCodes.value = result.roleCodes
+    persist()
+  }
+
   /** 服务端删会话失败也照常清本地（登出必须总能完成） */
   async function logout() {
     if (token.value === MOCK_TOKEN) {
@@ -130,6 +144,7 @@ export const useUserStore = defineStore('user', () => {
     roleCodes,
     isLoggedIn,
     login,
+    loginWithFace,
     logout,
     changePassword,
     fetchProfile,

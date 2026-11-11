@@ -28,7 +28,7 @@ public final class GlobalErrorCodeConstants {
 
     /** 用户上传文件超出大小限制(附表 3 A0702)：单个文件或单次请求总量超过 multipart 配置 */
     public static final ErrorCode UPLOAD_FILE_TOO_LARGE =
-            new ErrorCode("A0702", "用户上传文件太大", "文件过大，单张不超过 5MB，单次合计不超过 16MB");
+            new ErrorCode("A0702", "用户上传文件太大", "文件过大，单张不超过 10MB，单次合计不超过 32MB");
 
     /** 用户登录已过期(附表 3 A0230)：未携带 token 或会话失效，HTTP 映射 401 */
     public static final ErrorCode UNAUTHORIZED =
