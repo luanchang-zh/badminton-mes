@@ -3,6 +3,7 @@ package com.badminton.mes.module.system.controller;
 import java.util.List;
 
 import com.badminton.mes.common.core.CommonResult;
+import com.badminton.mes.module.system.client.FaceImage;
 import com.badminton.mes.module.system.controller.vo.AuthLoginReqVO;
 import com.badminton.mes.module.system.controller.vo.AuthLoginRespVO;
 import com.badminton.mes.module.system.controller.vo.AuthPasswordReqVO;
@@ -75,6 +76,7 @@ public class AuthController {
     @PostMapping(value = "/face_login", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CommonResult<AuthLoginRespVO> faceLogin(@RequestPart("image") List<MultipartFile> images,
                                                    HttpServletRequest request) {
+        FaceImage.validateUploadSizes(images);
         return CommonResult.success(authService.faceLogin(images, request.getRemoteAddr()));
     }
 

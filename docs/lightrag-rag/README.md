@@ -1,7 +1,7 @@
 # LightRAG 多租户知识库：设计与验收文档
 
-这里是 P1～P3 的全部设计文档与验收记录，已从 Comet 工作流产物转为普通 Markdown，
-不再受任何状态机管理，可以直接阅读与引用。
+这里保存 P1～P5 的设计、实现说明与验证记录，以及 MES 聊天后续接入方案。
+文档使用普通 Markdown；已完成状态以当前代码和最新验证记录为准。
 
 ## 文档
 
@@ -10,6 +10,8 @@
 | `01-multitenant-foundation.md` | **P1 规格**：配置解析、目录推导、启动隔离校验、实例注册表、依赖组件编排 |
 | `02-multitenant-server.md` | **P2 规格**：按租户注册前缀路由、统一 lifespan、全局模型并发上限、内部密钥鉴权 |
 | `03-isolation-verifier.md` | **P3 规格**：六个隔离场景的判定逻辑、三值状态语义、自检与真实执行 |
+| `04-rag-tenant-client.md` | **P4 说明**：Java 租户解析、上游客户端和绑定表 |
+| [05-mes-chat-integration.md](05-mes-chat-integration.md) | **MES 后续接入**：main 整合结果、账号开通、会话、引用和部署方案 |
 | `p3-brief.md` | **P3 需求说明**：为什么交付验证能力而不是验证结论 |
 | `verification-records.md` | **验收记录**：P1 9/9、P2 10/10 的结论与关键证据；P3 尚未验收 |
 
@@ -19,7 +21,9 @@
 | --- | --- | --- |
 | P1 | `lightrag-service/tenant/`（settings / config / validator / factory / registry / check） | 已提交 `1dca1f2` |
 | P2 | `lightrag-service/tenant/`（server / app / lifespan / llm_limiter / auth / placeholder） | 已提交 `08dc0cd` |
-| P3 | `lightrag-service/scripts/` + `lightrag-service/tests/scripts/` | 已完成，未提交 |
+| P3 | `lightrag-service/scripts/` + `lightrag-service/tests/scripts/` | 已合入 main，真实环境执行待做 |
+| P4 | `backend-java/.../module/rag/` 租户解析和客户端 | 已合入 main |
+| P5 | `backend-java/.../module/rag/` Controller、Service、SSE | 已合入 main，整合后 RAG 98 项测试通过 |
 
 ## 关键设计取舍
 
@@ -58,8 +62,7 @@ runner.py           CLI 编排与退出码
 | 项 | 说明 |
 | --- | --- |
 | P3 真实执行 | 需在有环境时跑 `python scripts/verify_isolation.py --real` |
-| P4 | Java 侧租户映射与 `RagClient` |
-| P5 | Java 对外接口、SSE 流式转发、Postman 用例 |
+| MES 聊天接入 | 用户开通、会话持久化、结构化引用、聊天 UI 与部署联调，见第 05 篇 |
 
 ## 相关文档
 

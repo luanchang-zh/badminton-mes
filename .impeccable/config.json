@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "helvetica",
+        "files": [
+          "frontend-web/src/styles/index.css"
+        ],
+        "createdAt": "2026-11-12T15:17:18.862Z",
+        "reason": "Agent triage: Helvetica is part of the existing MES system font stack, unchanged from HEAD. Project UI instructions require preserving the established typography; this task only changes the sidebar icon and login notices."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "frontend-web/design/rag-chat/index.html"
+        ],
+        "createdAt": "2026-11-13T13:33:18.476Z",
+        "reason": "Codex visual review: workspace is a flush three-column layout shell; text is inset inside the conversation rail, chat composer and source panel, verified at desktop viewport. Keep the column dividers flush with the outer frame."
+      }
+    ]
+  }
+}

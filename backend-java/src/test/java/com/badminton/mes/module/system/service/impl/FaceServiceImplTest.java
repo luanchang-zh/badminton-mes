@@ -44,6 +44,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -83,12 +85,17 @@ class FaceServiceImplTest {
                 .thenReturn(new ServiceException(SystemErrorCodeConstants.FACE_SERVICE_UNAVAILABLE));
     }
 
-    @Test
-    @DisplayName("注册：ADMIN 返回 A0301，不调用人脸服务也不加锁")
-    void enrollRejectsAdmin() {
-        assertServiceError(() -> service.enroll(user(RoleCodeConstants.ADMIN), images(2), true),
-                SystemErrorCodeConstants.FACE_ENROLL_ADMIN_FORBIDDEN);
-        verifyNoInteractions(insightFaceClient, faceUserLockRedisDAO);
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "PMC", "WORKSHOP_MANAGER", "TEAM_LEADER", "OPERATOR", "INSPECTOR", "CRAFT_ENGINEER"})
+    @DisplayName("注册：所有角色均可采集，包括 ADMIN 与混合角色")
+    void enrollAllowsAllRoles(String role) {
+        when(insightFaceClient.createPerson(eq(PERSON_ID), eq("7"), eq("张三"), anyList()))
+                .thenReturn(new EnrollResult(List.of("f1", "f2"), List.of()));
+
+        FaceEnrollRespVO response = service.enroll(user(role, RoleCodeConstants.OPERATOR), images(2), true);
+
+        assertThat(response.getAcceptedCount()).isEqualTo(2);
+        verify(faceBindingRepository).saveAndFlush(any());
     }
 
     @Test
@@ -209,13 +216,14 @@ class FaceServiceImplTest {
         verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
     }
 
-    @Test
-    @DisplayName("查询：未注册不调用人脸服务；ADMIN 的 faceLoginAllowed 为 false")
-    void profileNotEnrolled() {
-        FaceProfileRespVO response = service.getProfile(user(RoleCodeConstants.ADMIN));
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "PMC", "WORKSHOP_MANAGER", "TEAM_LEADER", "OPERATOR", "INSPECTOR", "CRAFT_ENGINEER"})
+    @DisplayName("查询：所有角色的未注册账号均允许进入采集，不调用人脸服务")
+    void profileNotEnrolled(String role) {
+        FaceProfileRespVO response = service.getProfile(user(role));
 
         assertThat(response.getEnrolled()).isFalse();
-        assertThat(response.getFaceLoginAllowed()).isFalse();
+        assertThat(response.getFaceLoginAllowed()).isTrue();
         assertThat(response.getFaceCount()).isZero();
         assertThat(response.getMaxFaces()).isEqualTo(5);
         assertThat(response.getSamples()).isEmpty();
@@ -252,6 +260,153 @@ class FaceServiceImplTest {
         assertThat(response.getEnrolled()).isFalse();
         assertThat(binding.getDeleted()).isTrue();
         verify(faceBindingRepository).saveAndFlush(binding);
+    }
+
+    @Test
+    @DisplayName("查询：Person 没有有效样本时回到未采集状态")
+    void profileHealsEmptyPerson() {
+        FaceBindingEntity binding = binding();
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(binding));
+        when(insightFaceClient.listFaces(PERSON_ID)).thenReturn(Optional.of(List.of()));
+
+        FaceProfileRespVO response = service.getProfile(user(RoleCodeConstants.ADMIN));
+
+        assertThat(response.getEnrolled()).isFalse();
+        assertThat(response.getFaceLoginAllowed()).isTrue();
+        assertThat(response.getFaceCount()).isZero();
+        assertThat(response.getSamples()).isEmpty();
+        assertThat(binding.getDeleted()).isTrue();
+        verify(faceBindingRepository).saveAndFlush(binding);
+    }
+
+    @Test
+    @DisplayName("重采集：在同一用户锁内删除旧特征、关闭旧绑定并记录本次同意和新样本")
+    void reenrollReplacesExistingEnrollment() {
+        FaceBindingEntity old = binding();
+        old.setConsentTime(LocalDateTime.of(2026, 11, 9, 10, 0));
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID))
+                .thenReturn(Optional.of(old), Optional.empty());
+        when(insightFaceClient.createPerson(eq(PERSON_ID), eq("7"), eq("张三"), anyList()))
+                .thenReturn(new EnrollResult(List.of("new1", "new2"), List.of(new RejectedImage(3, "照片模糊"))));
+
+        FaceEnrollRespVO response = service.reenroll(user(RoleCodeConstants.ADMIN), images(3), true);
+
+        assertThat(response.getAcceptedCount()).isEqualTo(2);
+        assertThat(response.getFaceCount()).isEqualTo(2);
+        assertThat(response.getRejectedImages()).singleElement().satisfies(rejected -> {
+            assertThat(rejected.getIndex()).isEqualTo(3);
+            assertThat(rejected.getReason()).isEqualTo("照片模糊");
+        });
+        InOrder order = inOrder(faceUserLockRedisDAO, insightFaceClient, faceBindingRepository);
+        order.verify(faceUserLockRedisDAO).tryLock(USER_ID);
+        order.verify(insightFaceClient).deletePerson(PERSON_ID);
+        order.verify(faceBindingRepository).saveAndFlush(old);
+        order.verify(insightFaceClient).createPerson(eq(PERSON_ID), eq("7"), eq("张三"), anyList());
+        ArgumentCaptor<FaceBindingEntity> saved = ArgumentCaptor.forClass(FaceBindingEntity.class);
+        order.verify(faceBindingRepository).saveAndFlush(saved.capture());
+        order.verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
+        assertThat(old.getDeleted()).isTrue();
+        assertThat(saved.getValue()).isNotSameAs(old);
+        assertThat(saved.getValue().getConsentTime()).isAfter(old.getConsentTime());
+        assertThat(saved.getValue().getDeleted()).isFalse();
+        assertThat(saved.getValue().getLastLoginTime()).isNull();
+        verify(faceUserLockRedisDAO, times(1)).tryLock(USER_ID);
+        verify(insightFaceClient, never()).addFaces(anyString(), anyList());
+    }
+
+    @Test
+    @DisplayName("重采集：未同意、张数或格式错误时保留旧特征，不加锁")
+    void reenrollValidatesBeforeDeleting() {
+        assertServiceError(() -> service.reenroll(user(), images(2), null),
+                SystemErrorCodeConstants.FACE_CONSENT_REQUIRED);
+        assertServiceError(() -> service.reenroll(user(), images(2), false),
+                SystemErrorCodeConstants.FACE_CONSENT_REQUIRED);
+        assertServiceError(() -> service.reenroll(user(), null, true),
+                SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID);
+        assertServiceError(() -> service.reenroll(user(), images(1), true),
+                SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID);
+        assertServiceError(() -> service.reenroll(user(), images(4), true),
+                SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID);
+        MultipartFile text = new MockMultipartFile("images", "a.jpg", "image/jpeg", new byte[] {0});
+        assertServiceError(() -> service.reenroll(user(), List.of(text, text), true),
+                GlobalErrorCodeConstants.UPLOAD_FILE_TYPE_INVALID);
+        verifyNoInteractions(insightFaceClient, faceBindingRepository, faceUserLockRedisDAO);
+    }
+
+    @Test
+    @DisplayName("重采集：占锁时返回 A0503，保留旧特征")
+    void reenrollRejectsWhenLocked() {
+        when(faceUserLockRedisDAO.tryLock(USER_ID)).thenReturn(Optional.empty());
+
+        assertServiceError(() -> service.reenroll(user(), images(2), true),
+                SystemErrorCodeConstants.FACE_OPERATION_IN_PROGRESS);
+
+        verifyNoInteractions(insightFaceClient, faceBindingRepository);
+        verify(faceUserLockRedisDAO, never()).unlock(any(), any());
+    }
+
+    @Test
+    @DisplayName("重采集：删除旧 Person 失败时保留旧绑定并释放锁")
+    void reenrollKeepsBindingWhenDeleteFails() {
+        when(insightFaceClient.deletePerson(PERSON_ID))
+                .thenThrow(new ServiceException(SystemErrorCodeConstants.FACE_SERVICE_UNAVAILABLE));
+
+        assertServiceError(() -> service.reenroll(user(), images(2), true),
+                SystemErrorCodeConstants.FACE_SERVICE_UNAVAILABLE);
+
+        verifyNoInteractions(faceBindingRepository);
+        verify(insightFaceClient, never()).createPerson(anyString(), anyString(), anyString(), anyList());
+        verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
+    }
+
+    @Test
+    @DisplayName("重采集：新照片全部拒收时清除旧绑定，不写新绑定，查询返回未采集")
+    void reenrollAllRejected() {
+        FaceBindingEntity old = binding();
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID))
+                .thenReturn(Optional.of(old), Optional.empty());
+        when(insightFaceClient.createPerson(anyString(), anyString(), anyString(), anyList()))
+                .thenReturn(new EnrollResult(List.of(), List.of(new RejectedImage(1, "未检测到人脸"))));
+
+        FaceEnrollRespVO response = service.reenroll(user(), images(2), true);
+
+        assertThat(response.getAcceptedCount()).isZero();
+        assertThat(response.getFaceCount()).isZero();
+        assertThat(old.getDeleted()).isTrue();
+        verify(faceBindingRepository).saveAndFlush(old);
+        verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
+        assertThat(service.getProfile(user()).getEnrolled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("重采集：旧特征删除后新建失败，旧绑定保持关闭，可重新提交")
+    void reenrollCreationFailureKeepsOldBindingClosed() {
+        FaceBindingEntity old = binding();
+        when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID))
+                .thenReturn(Optional.of(old), Optional.empty());
+        when(insightFaceClient.createPerson(anyString(), anyString(), anyString(), anyList()))
+                .thenThrow(new ServiceException(SystemErrorCodeConstants.FACE_SERVICE_TIMEOUT));
+
+        assertServiceError(() -> service.reenroll(user(), images(2), true),
+                SystemErrorCodeConstants.FACE_SERVICE_TIMEOUT);
+
+        assertThat(old.getDeleted()).isTrue();
+        verify(faceBindingRepository).saveAndFlush(old);
+        verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
+        assertThat(service.getProfile(user()).getEnrolled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("重采集：未注册用户可以直接采集")
+    void reenrollWithoutExistingBinding() {
+        when(insightFaceClient.createPerson(anyString(), anyString(), anyString(), anyList()))
+                .thenReturn(new EnrollResult(List.of("f1", "f2", "f3"), List.of()));
+
+        FaceEnrollRespVO response = service.reenroll(user(), images(3), true);
+
+        assertThat(response.getFaceCount()).isEqualTo(3);
+        verify(faceBindingRepository).saveAndFlush(any());
+        verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
     }
 
     @Test
@@ -363,10 +518,10 @@ class FaceServiceImplTest {
     }
 
     @Test
-    @DisplayName("追加：ADMIN 返回 A0301，未注册返回 A0440")
-    void addSamplesRejectsAdminAndNotEnrolled() {
+    @DisplayName("追加：所有角色未注册时均返回 A0440")
+    void addSamplesRejectsNotEnrolled() {
         assertServiceError(() -> service.addSamples(user(RoleCodeConstants.ADMIN), images(1)),
-                SystemErrorCodeConstants.FACE_ENROLL_ADMIN_FORBIDDEN);
+                SystemErrorCodeConstants.FACE_NOT_ENROLLED);
         assertServiceError(() -> service.addSamples(user(), images(1)), SystemErrorCodeConstants.FACE_NOT_ENROLLED);
         verify(insightFaceClient, never()).addFaces(anyString(), anyList());
     }
@@ -382,15 +537,16 @@ class FaceServiceImplTest {
         verify(faceUserLockRedisDAO).unlock(USER_ID, LOCK_TOKEN);
     }
 
-    @Test
-    @DisplayName("追加：成功时 faceCount 为原有加本次成功张数")
-    void addSamplesSuccess() {
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "PMC", "WORKSHOP_MANAGER", "TEAM_LEADER", "OPERATOR", "INSPECTOR", "CRAFT_ENGINEER"})
+    @DisplayName("追加：所有角色均可追加，faceCount 为原有加本次成功张数")
+    void addSamplesSuccess(String role) {
         when(faceBindingRepository.findByUserIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(binding()));
         when(insightFaceClient.listFaces(PERSON_ID)).thenReturn(Optional.of(samples(2)));
         when(insightFaceClient.addFaces(eq(PERSON_ID), anyList()))
                 .thenReturn(new EnrollResult(List.of("f9"), List.of(new RejectedImage(2, "未检测到人脸"))));
 
-        FaceEnrollRespVO response = service.addSamples(user(), images(2));
+        FaceEnrollRespVO response = service.addSamples(user(role), images(2));
 
         assertThat(response.getAcceptedCount()).isEqualTo(1);
         assertThat(response.getFaceCount()).isEqualTo(3);

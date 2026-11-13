@@ -10,7 +10,6 @@ import java.util.function.Supplier;
 
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.common.security.LoginUser;
-import com.badminton.mes.common.security.RoleCodeConstants;
 import com.badminton.mes.module.system.client.FaceImage;
 import com.badminton.mes.module.system.client.InsightFaceApiException;
 import com.badminton.mes.module.system.client.InsightFaceClient;
@@ -80,26 +79,39 @@ public class FaceServiceImpl implements FaceService {
 
     @Override
     public FaceEnrollRespVO enroll(LoginUser loginUser, List<MultipartFile> images, Boolean consent) {
-        if (isAdmin(loginUser)) {
-            throw new ServiceException(SystemErrorCodeConstants.FACE_ENROLL_ADMIN_FORBIDDEN);
-        }
-        if (!Boolean.TRUE.equals(consent)) {
-            throw new ServiceException(SystemErrorCodeConstants.FACE_CONSENT_REQUIRED);
-        }
-        if (images == null || images.size() < ENROLL_MIN_IMAGES || images.size() > ENROLL_MAX_IMAGES) {
-            throw new ServiceException(SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID,
-                    "首次注册需要 " + ENROLL_MIN_IMAGES + "～" + ENROLL_MAX_IMAGES + " 张照片");
-        }
-        List<FaceImage> faceImages = FaceImage.fromUploads(images);
+        List<FaceImage> faceImages = validateEnrollment(images, consent);
         Long userId = loginUser.getUserId();
         LocalDateTime consentTime = LocalDateTime.now();
         return withUserLock(userId, () -> doEnroll(loginUser, faceImages, consentTime));
     }
 
     @Override
+    public FaceEnrollRespVO reenroll(LoginUser loginUser, List<MultipartFile> images, Boolean consent) {
+        // 在删除任何旧特征前完成同意、张数和文件格式校验。
+        List<FaceImage> faceImages = validateEnrollment(images, consent);
+        Long userId = loginUser.getUserId();
+        LocalDateTime consentTime = LocalDateTime.now();
+        return withUserLock(userId, () -> {
+            doRemoveEnrollment(userId);
+            return doEnroll(loginUser, faceImages, consentTime);
+        });
+    }
+
+    private List<FaceImage> validateEnrollment(List<MultipartFile> images, Boolean consent) {
+        if (!Boolean.TRUE.equals(consent)) {
+            throw new ServiceException(SystemErrorCodeConstants.FACE_CONSENT_REQUIRED);
+        }
+        if (images == null || images.size() < ENROLL_MIN_IMAGES || images.size() > ENROLL_MAX_IMAGES) {
+            throw new ServiceException(SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID,
+                    "人脸采集需要 " + ENROLL_MIN_IMAGES + "～" + ENROLL_MAX_IMAGES + " 张照片");
+        }
+        return FaceImage.fromUploads(images);
+    }
+
+    @Override
     public FaceProfileRespVO getProfile(LoginUser loginUser) {
         FaceProfileRespVO response = new FaceProfileRespVO();
-        response.setFaceLoginAllowed(!isAdmin(loginUser));
+        response.setFaceLoginAllowed(true);
         response.setMaxFaces(properties.getMaxFacesPerPerson());
         response.setEnrolled(false);
         response.setFaceCount(0);
@@ -110,7 +122,7 @@ public class FaceServiceImpl implements FaceService {
             return response;
         }
         Optional<List<FaceSample>> samples = insightFaceClient.listFaces(binding.get().getPersonId());
-        if (samples.isEmpty()) {
+        if (samples.isEmpty() || samples.get().isEmpty()) {
             healBinding(binding.get());
             return response;
         }
@@ -122,9 +134,6 @@ public class FaceServiceImpl implements FaceService {
 
     @Override
     public FaceEnrollRespVO addSamples(LoginUser loginUser, List<MultipartFile> images) {
-        if (isAdmin(loginUser)) {
-            throw new ServiceException(SystemErrorCodeConstants.FACE_ENROLL_ADMIN_FORBIDDEN);
-        }
         if (images == null || images.isEmpty()) {
             throw new ServiceException(SystemErrorCodeConstants.FACE_IMAGE_COUNT_INVALID, "追加样本至少需要 1 张照片");
         }
@@ -355,9 +364,9 @@ public class FaceServiceImpl implements FaceService {
         }
     }
 
-    /** 绑定存在但 Person 已不在人脸库：把绑定标为已删除，按未注册处理。 */
+    /** Person 已不存在或没有有效样本：把绑定标为已删除，按未注册处理。 */
     private void healBinding(FaceBindingEntity binding) {
-        logger.warn("[人脸登录] 绑定对应的 Person 不存在，绑定标为已删除, userId: {}, personId: {}",
+        logger.warn("[人脸登录] 绑定对应的 Person 不存在或无有效样本，绑定标为已删除, userId: {}, personId: {}",
                 binding.getUserId(), binding.getPersonId());
         binding.setDeleted(true);
         faceBindingRepository.saveAndFlush(binding);
@@ -371,10 +380,6 @@ public class FaceServiceImpl implements FaceService {
         } finally {
             faceUserLockRedisDAO.unlock(userId, token);
         }
-    }
-
-    private static boolean isAdmin(LoginUser loginUser) {
-        return loginUser.getRoleCodes() != null && loginUser.getRoleCodes().contains(RoleCodeConstants.ADMIN);
     }
 
     private static String personIdOf(Long userId) {

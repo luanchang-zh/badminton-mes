@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MES 知识库问答 · 交互设计方案</title>
+  <link rel="stylesheet" href="./proposal.css">
+</head>
+<body data-focus-mode="pointer">
+  <!-- Icons reused from the project's @element-plus/icons-vue package. -->
+  <svg class="icon-sprite" aria-hidden="true"><symbol id="icon-edit" viewBox="0 0 1024 1024"><path fill="currentColor" d="M832 512a32 32 0 1 1 64 0v352a32 32 0 0 1-32 32H160a32 32 0 0 1-32-32V160a32 32 0 0 1 32-32h352a32 32 0 0 1 0 64H192v640h640z"></path><path fill="currentColor" d="m469.952 554.24 52.8-7.552L847.104 222.4a32 32 0 1 0-45.248-45.248L477.44 501.44l-7.552 52.8zm422.4-422.4a96 96 0 0 1 0 135.808l-331.84 331.84a32 32 0 0 1-18.112 9.088L436.8 623.68a32 32 0 0 1-36.224-36.224l15.104-105.6a32 32 0 0 1 9.024-18.112l331.904-331.84a96 96 0 0 1 135.744 0z"></path></symbol><symbol id="icon-more" viewBox="0 0 1024 1024"><path fill="currentColor" d="M176 416a112 112 0 1 1 0 224 112 112 0 0 1 0-224m336 0a112 112 0 1 1 0 224 112 112 0 0 1 0-224m336 0a112 112 0 1 1 0 224 112 112 0 0 1 0-224"></path></symbol><symbol id="icon-delete" viewBox="0 0 1024 1024"><path fill="currentColor" d="M160 256H96a32 32 0 0 1 0-64h256V95.936a32 32 0 0 1 32-32h256a32 32 0 0 1 32 32V192h256a32 32 0 1 1 0 64h-64v672a32 32 0 0 1-32 32H192a32 32 0 0 1-32-32zm448-64v-64H416v64zM224 896h576V256H224zm192-128a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32m192 0a32 32 0 0 1-32-32V416a32 32 0 0 1 64 0v320a32 32 0 0 1-32 32"></path></symbol></svg>
+  <div class="preview-bar"><span><strong>交互设计预览</strong><span class="preview-note">示例内容</span></span>
+    <label>页面状态 <select id="scenario" aria-label="预览页面状态"><option value="answer">有回答与来源</option><option value="empty">新对话</option><option value="unavailable">服务未连接</option><option value="unbound">知识库未开通</option><option value="emptyKnowledge">知识库无文档</option><option value="noMatch">未检索到资料</option><option value="failed">回答失败</option></select></label>
+  </div>
+  <div class="app-shell">
+    <aside class="global-nav" aria-label="MES 主导航">
+      <div class="brand"><span class="brand-image"><img src="../../src/assets/images/sidebar-mes-logo-refined.webp" alt="MES"></span><strong>羽毛球 MES</strong></div>
+      <div class="nav-items"><div><span>▦</span><span>工作台</span></div><div><span>▤</span><span>生产管理</span></div><div><span>☷</span><span>工艺管理</span></div><div><span>▧</span><span>基础资料</span></div><div><span>▣</span><span>设备管理</span></div><div><span>✓</span><span>质量管理</span></div><div class="nav-active"><span>▱</span><span>知识库问答</span></div><div><span>⚙</span><span>系统管理</span></div></div>
+      <div class="nav-foot"><span class="nav-foot-mark">MES</span><span>制造执行系统</span></div>
+    </aside>
+    <div class="application">
+      <header class="global-header"><div class="breadcrumbs"><button id="collapse-nav" class="icon-button" aria-label="折叠主导航">☰</button><span>知识库</span><span class="muted">/</span><span>知识库问答</span></div><div class="user"><span class="avatar small">王</span><span>王师傅</span><span class="muted">⌄</span></div></header>
+      <div class="tabs"><span>工作台</span><span class="current-tab">知识库问答 <span aria-hidden="true">×</span></span></div>
+      <main class="page" aria-label="知识库问答">
+        <div class="workspace">
+          <aside class="conversation-rail" aria-label="历史对话">
+            <div class="rail-heading"><span class="rail-label">最近对话</span><button id="new-chat" class="icon-button new-chat" aria-label="新建对话" title="新建对话"><svg class="ui-icon" aria-hidden="true"><use href="#icon-edit"></use></svg></button></div>
+            <label class="search"><span aria-hidden="true">⌕</span><input id="search" placeholder="搜索历史对话" aria-label="搜索历史对话"></label>
+            <div id="conversations" class="conversation-list"></div>
+          </aside>
+          <section class="chat" aria-label="知识库对话">
+            <div class="chat-heading"><div><h2 id="chat-title">装配线设备点检</h2><span id="chat-subtitle">今天</span></div><div class="chat-heading-actions"><button id="source-toggle" class="text-button">查看来源</button><details class="more"><summary aria-label="对话操作">···</summary><div><button id="rename-chat">重命名</button><button id="delete-chat">删除对话</button></div></details></div></div>
+            <div id="service-notice" class="service-notice" hidden></div>
+            <div id="messages" class="messages" aria-label="消息列表"></div>
+            <div class="composer-wrap">
+              <form id="composer" class="composer"><label class="sr-only" for="question">输入问题</label><textarea id="question" rows="2" maxlength="2000" placeholder="输入问题，例如：装配线开机前需要做哪些检查？"></textarea>
+                <div class="composer-tools"><label class="mode-label">检索方式 <select id="mode" aria-label="检索方式"><option value="naive">标准检索</option><option value="mix">综合检索</option><option value="local">实体关联</option><option value="global">全局概览</option><option value="hybrid">关联与概览</option></select></label><div class="send-tools"><span id="counter" class="muted">0 / 2000</span><button id="send" type="submit" class="primary">发送 <span aria-hidden="true">↑</span></button><button id="stop" type="button" class="stop" hidden><span aria-hidden="true">■</span> 停止生成</button></div></div>
+              </form><span id="generation-status" class="sr-only" role="status"></span>
+            </div>
+          </section>
+          <div id="source-backdrop" class="source-backdrop" hidden></div>
+          <aside id="source-panel" class="source-panel" aria-label="回答来源"><div class="source-heading"><div><h2>回答来源</h2><p>查看本条回答引用的原文</p></div><button id="source-close" class="icon-button" aria-label="关闭来源面板">×</button></div><div class="source-body"><div class="document-type">Markdown 文档</div><h3>装配线设备点检规程.md</h3><div class="document-meta"><span>引用 [1]</span><span>2 个相关片段</span></div><div class="source-fragment"><div class="fragment-label">开机前检查</div><p>开机前应依次检查电源与急停装置、传动机构、气路以及作业区域。急停按钮复位后，先进行空载试运行，确认设备无异响、无异常振动。</p></div><div class="source-fragment"><div class="fragment-label">异常处理</div><p>发现传动带松动、气压异常或防护装置缺失时，应停止开机并报修。完成处理、确认安全后再恢复作业。</p></div><p class="source-footnote">以上片段与本条回答一同保存，可在历史对话中再次查看。</p></div></aside>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div id="thread-menu" class="thread-menu" role="menu" aria-label="会话操作" hidden>
+    <button type="button" role="menuitem" data-thread-action="rename"><svg class="ui-icon" aria-hidden="true"><use href="#icon-edit"></use></svg>重命名</button>
+    <button type="button" role="menuitem" data-thread-action="delete" class="danger"><svg class="ui-icon" aria-hidden="true"><use href="#icon-delete"></use></svg>删除对话</button>
+  </div>
+  <dialog id="thread-dialog" class="thread-dialog" aria-labelledby="thread-dialog-title">
+    <form id="thread-dialog-form">
+      <h2 id="thread-dialog-title">重命名对话</h2>
+      <label id="rename-field" for="thread-title-input">对话名称<input id="thread-title-input" maxlength="120" required autocomplete="off"></label>
+      <p id="thread-dialog-message" hidden></p>
+      <div class="dialog-actions"><button type="button" id="thread-dialog-cancel">取消</button><button type="submit" id="thread-dialog-confirm" class="primary">保存</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="./proposal.js"></script>
+</body>
+</html>

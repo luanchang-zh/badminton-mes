@@ -7,6 +7,7 @@ import { Grid, DocumentCopy, Service, User, Lock, Right, CirclePlus, Hide, View 
 import { useUserStore } from '@/stores/user'
 import LoginIntro from './LoginIntro.vue'
 import ShuttleMark from './ShuttleMark.vue'
+import brandIcon from '@/assets/images/sidebar-mes-logo-refined.webp'
 import background from '@/assets/images/login-reference-background.webp'
 import RegisterForm from './RegisterForm.vue'
 import FaceCapture from '@/components/face/FaceCapture.vue'
@@ -26,7 +27,15 @@ const passwordVisible = ref(false)
 const loginMode = ref<'password' | 'face'>('password')
 
 function finishLogin() {
-  ElMessage.success(`欢迎，${userStore.userName}`)
+  let closeTimer: number | undefined
+  const welcome = ElMessage.success({
+    message: `欢迎，${userStore.userName}`,
+    customClass: 'mes-welcome-notice',
+    duration: 0,
+    onClose: () => window.clearTimeout(closeTimer),
+  })
+  // 欢迎提示固定停留 2 秒，鼠标悬停不延长。
+  closeTimer = window.setTimeout(() => welcome.close(), 2000)
   const redirect = route.query.redirect
   router.push(typeof redirect === 'string' ? redirect : '/')
 }
@@ -90,7 +99,9 @@ async function handleRegistered(userNo: string, password: string) {
     <div class="login-page__canvas">
       <header class="login-page__header">
         <div class="login-page__brand">
-          <ShuttleMark class="login-page__brand-icon" />
+          <span class="login-page__brand-icon" aria-hidden="true">
+            <img :src="brandIcon" alt="" width="69" height="69" />
+          </span>
           <span>羽毛球 MES</span>
           <span class="login-page__brand-description">生产制造执行系统</span>
         </div>
@@ -209,7 +220,8 @@ async function handleRegistered(userNo: string, password: string) {
 .login-page__canvas { position: relative; width: calc(1672 * var(--u)); height: calc(941 * var(--u)); }
 .login-page__header { position: absolute; z-index: 2; top: calc(28 * var(--u)); left: calc(89 * var(--u)); right: calc(79 * var(--u)); display: flex; justify-content: space-between; align-items: center; }
 .login-page__brand { display: flex; align-items: center; gap: calc(15 * var(--u)); white-space: nowrap; font-size: calc(26 * var(--u)); font-weight: 700; }
-.login-page__brand-icon { width: calc(43 * var(--u)); height: calc(43 * var(--u)); }
+.login-page__brand-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: calc(43 * var(--u)); height: calc(43 * var(--u)); overflow: hidden; border-radius: calc(9 * var(--u)); background: #001529; }
+.login-page__brand-icon img { display: block; flex-shrink: 0; width: calc(69 * var(--u)); height: calc(69 * var(--u)); max-width: none; object-fit: contain; }
 .login-page__brand-description { margin-left: calc(26 * var(--u)); padding-left: calc(30 * var(--u)); border-left: 1px solid #b5c9d1; color: #3c5262; font-size: calc(18 * var(--u)); font-weight: 500; line-height: 1.25; }
 .login-page__header-links { display: flex; align-items: center; gap: calc(48 * var(--u)); color: #344c5c; font-size: calc(16 * var(--u)); font-weight: 500; }
 .login-page__platform, .login-page__header-help { display: inline-flex; align-items: center; gap: calc(10 * var(--u)); white-space: nowrap; }

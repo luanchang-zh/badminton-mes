@@ -1,6 +1,7 @@
 async (page) => {
   const assert = (value, message) => { if (!value) throw new Error(message) }
   const checks = []
+  const baseURL = /^https?:/.test(page.url()) ? new URL(page.url()).origin : 'http://127.0.0.1:5173'
   await page.unrouteAll({ behavior: 'wait' })
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.addInitScript(() => {
@@ -26,7 +27,7 @@ async (page) => {
   let enrolled = false, reject = true, deniedLogin = true, failStatus = false
   const calls = []
   const user = { userId: 901, userNo: 'face-ui-test', userName: '界面验收', roleCodes: ['WORKER'] }
-  await page.route('http://127.0.0.1:5173/api/**', async route => {
+  await page.route(`${baseURL}/api/**`, async route => {
     const request = route.request(), path = new URL(request.url()).pathname
     calls.push({ path, method: request.method(), body: request.postData() })
     let data = null, code = '00000', userTip = null
@@ -36,13 +37,13 @@ async (page) => {
     else if (path.endsWith('/auth/profile')) data = { ...user, roleNames: ['生产员工'] }
     else if (path.endsWith('/face/profile')) {
       if (failStatus) { code = 'B0001'; userTip = '状态服务暂不可用' }
-      data = { enrolled, faceLoginAllowed: true, faceCount: enrolled ? 2 : 0, maxFaces: 5, samples: [] }
+      data = { enrolled, faceLoginAllowed: true, faceCount: enrolled ? 3 : 0, maxFaces: 5, samples: [] }
     } else if (path.endsWith('/face/enroll')) {
       const body = request.postDataBuffer().toString('latin1')
-      assert((body.match(/name="images"/g) || []).length === 2, 'Enrollment must send two image parts')
+      assert((body.match(/name="images"/g) || []).length === 3, 'Enrollment must send three image parts')
       assert(body.includes('name="consent"') && body.includes('true'), 'Consent must be sent')
       if (reject) data = { acceptedCount: 0, faceCount: 0, rejectedImages: [{ index: 1, reason: '面部不够清晰' }, { index: 2, reason: '光线不足' }] }
-      else { enrolled = true; data = { acceptedCount: 2, faceCount: 2, rejectedImages: [] } }
+      else { enrolled = true; data = { acceptedCount: 3, faceCount: 3, rejectedImages: [] } }
     } else if (path.endsWith('/auth/face_login')) {
       const body = request.postDataBuffer().toString('latin1')
       assert((body.match(/name="image"/g) || []).length === 1, 'Login must send one image part')
@@ -51,7 +52,7 @@ async (page) => {
     } else if (path.endsWith('/face/enrollment') && request.method() === 'DELETE') enrolled = false
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code, message: userTip || 'ok', userTip, data }) })
   })
-  await page.goto('http://127.0.0.1:5173/login')
+  await page.goto(`${baseURL}/login`)
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await page.evaluate(() => { window.__cameraDenied = true })
@@ -81,27 +82,28 @@ async (page) => {
   await page.getByRole('button', { name: '稍后', exact: true }).click()
   await page.locator('.basic-layout__user').click()
   await page.getByRole('menuitem', { name: '人脸登录设置', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: '设置人脸登录', exact: true })
+  const dialog = page.locator('.enroll-dialog')
   await dialog.waitFor()
-  await dialog.getByRole('button', { name: '开启摄像头', exact: true }).waitFor()
-  assert(await dialog.getByRole('button', { name: '开启摄像头', exact: true }).isDisabled(), 'Camera must be gated by consent')
+  await dialog.getByRole('button', { name: '开始采集', exact: true }).waitFor()
+  assert(await dialog.getByRole('button', { name: '开始采集', exact: true }).isDisabled(), 'Camera must be gated by consent')
   await page.screenshot({ animations: 'disabled', path: '/home/liuhan/StudyDir/ProfessionalPractice/badminton-mes/docs/design/login/face/enrollment-consent.png' })
   await dialog.locator('.el-checkbox').click()
   await page.evaluate(() => { window.__cameraDenied = false })
-  await dialog.getByRole('button', { name: '开启摄像头', exact: true }).click()
+  await dialog.getByRole('button', { name: '开始采集', exact: true }).click()
   await page.waitForFunction(() => document.querySelector('video')?.videoWidth > 0)
-  await dialog.getByRole('button', { name: '采集正面照片', exact: true }).click()
-  await dialog.getByRole('button', { name: '采集微侧面照片', exact: true }).click()
-  await dialog.getByRole('button', { name: '提交并开通人脸登录', exact: true }).click()
+  await dialog.getByRole('button', { name: '拍摄正面', exact: true }).click()
+  await dialog.getByRole('button', { name: '拍摄左转头', exact: true }).click()
+  await dialog.getByRole('button', { name: '拍摄右转头', exact: true }).click()
+  await dialog.getByRole('button', { name: '确认并开启', exact: true }).click()
   await dialog.getByRole('alert').filter({ hasText: '面部不够清晰' }).waitFor()
-  assert(await dialog.getByText('人脸采集完成', { exact: true }).count() === 0, 'Zero accepted must not show success')
-  checks.push('Consent gate; two JPEG parts; rejected samples show reasons without success')
+  assert(await dialog.getByText('人脸登录已开启', { exact: true }).count() === 0, 'Zero accepted must not show success')
+  checks.push('Consent gate; three JPEG parts; rejected samples show reasons without success')
   reject = false
-  await dialog.getByRole('button', { name: '提交并开通人脸登录', exact: true }).click()
-  await dialog.getByRole('heading', { name: '人脸采集完成', exact: true }).waitFor()
+  await dialog.getByRole('button', { name: '确认并开启', exact: true }).click()
+  await dialog.getByRole('heading', { name: '人脸登录已开启', exact: true }).waitFor()
   assert(await page.evaluate(() => window.__faceTracks.every(t => t.readyState === 'ended') && window.__faceUrls.size === 0), 'Capture streams and URLs must be released on success')
   await page.screenshot({ animations: 'disabled', path: '/home/liuhan/StudyDir/ProfessionalPractice/badminton-mes/docs/design/login/face/enrollment-success.png' })
-  await dialog.getByRole('button', { name: '完成，返回工作台', exact: true }).click()
+  await dialog.getByRole('button', { name: '完成', exact: true }).click()
   assert(await page.getByRole('button', { name: '立即采集', exact: true }).count() === 0, 'Prompt must disappear after enrollment')
   await page.reload()
   await page.locator('.basic-layout__user').waitFor()
@@ -127,9 +129,9 @@ async (page) => {
   await dialog.locator('.el-checkbox').waitFor()
   assert(!enrolled, 'Disable must call backend delete')
   await dialog.locator('.el-checkbox').click()
-  await dialog.getByRole('button', { name: '开启摄像头', exact: true }).click()
+  await dialog.getByRole('button', { name: '开始采集', exact: true }).click()
   await page.waitForFunction(() => document.querySelector('video')?.videoWidth > 0)
-  await dialog.getByRole('button', { name: '暂不设置', exact: true }).click()
+  await dialog.getByRole('button', { name: '暂不开启', exact: true }).click()
   await page.waitForTimeout(300)
   assert(await page.evaluate(() => window.__faceTracks.every(t => t.readyState === 'ended')), 'Closing dialog must stop camera')
   checks.push('Delete enrollment works; closing active camera stops tracks')
@@ -142,7 +144,7 @@ async (page) => {
   await dialog.locator('.el-checkbox').waitFor()
   checks.push('Face status failure can retry')
   await dialog.locator('.el-checkbox').click()
-  await dialog.getByRole('button', { name: '开启摄像头', exact: true }).click()
+  await dialog.getByRole('button', { name: '开始采集', exact: true }).click()
   await page.waitForFunction(() => document.querySelector('video')?.videoWidth > 0)
   await page.evaluate(() => {
     Object.defineProperty(document, 'hidden', { configurable: true, value: true })
@@ -152,7 +154,7 @@ async (page) => {
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }) })
   await page.setViewportSize({ width: 1366, height: 768 })
   assert(await dialog.evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), 'Dialog must fit short desktop')
-  await dialog.getByRole('button', { name: '暂不设置', exact: true }).click()
+  await dialog.getByRole('button', { name: '暂不开启', exact: true }).click()
   await page.locator('.basic-layout__user').click()
   await page.getByRole('menuitem', { name: '退出登录', exact: true }).click()
   await page.waitForURL('**/login')

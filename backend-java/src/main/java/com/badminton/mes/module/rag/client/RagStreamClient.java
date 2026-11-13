@@ -11,12 +11,15 @@ import java.util.function.Consumer;
 
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.module.rag.client.dto.RagQueryResult;
+import com.badminton.mes.module.rag.client.dto.RagReference;
+import com.badminton.mes.module.rag.client.dto.RagHistoryMessage;
 import com.badminton.mes.module.rag.config.RagProperties;
 import com.badminton.mes.module.rag.constants.RagErrorCodeConstants;
 import com.badminton.mes.module.rag.enums.RagQueryMode;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
@@ -63,6 +66,7 @@ public class RagStreamClient {
      * @param objectMapper 项目统一的 JSON 映射器
      * @param properties   上游配置
      */
+    @Autowired
     public RagStreamClient(ObjectMapper objectMapper, RagProperties properties) {
         this(objectMapper, properties,
                 RagRestClientFactory.build(properties, properties.getStreamReadTimeout()));
@@ -100,16 +104,18 @@ public class RagStreamClient {
                                       RagQueryMode mode,
                                       Consumer<RagStreamLine> lineConsumer,
                                       StreamCancellation cancellation) {
+        return streamQuery(tenantId, question, mode, List.of(), lineConsumer, cancellation);
+    }
+
+    /** 流式调用携带 MES 保存的历史，其他生命周期与单次调用一致。 */
+    public RagQueryResult streamQuery(String tenantId, String question, RagQueryMode mode,
+                                      List<RagHistoryMessage> history, Consumer<RagStreamLine> lineConsumer,
+                                      StreamCancellation cancellation) {
         String safeTenant = RagTenantGuard.requireValid(tenantId);
         RagQueryMode safeMode = mode == null ? RagQueryMode.DEFAULT_MODE : mode;
         String uri = RagTenantGuard.tenantUri(properties, safeTenant, STREAM_PATH);
-        Map<String, Object> payload = Map.of(
-                "query", question == null ? "" : question,
-                "mode", safeMode.getValue(),
-                "stream", true,
-                "include_references", true,
-                // 不打开这个开关，上游 references 里只有文件路径，没有片段正文
-                "include_chunk_content", true);
+        Map<String, Object> payload = RagClient.queryPayload(question, safeMode.getValue(), history);
+        payload.put("stream", true);
 
         StreamCollector collector = new StreamCollector(safeMode.getValue(), lineConsumer);
         try {
@@ -199,12 +205,14 @@ public class RagStreamClient {
         // 缓存命中的单行完整响应：references 与 response 同时存在，必须都保留
         if (references instanceof List<?> referenceList
                 && content instanceof String contentText && !contentText.isEmpty()) {
-            return RagStreamLine.referencesAndContent(
-                    RagResponseParser.extractReferenceTexts(referenceList), contentText);
+            return new RagStreamLine(RagStreamLine.Kind.CONTENT, contentText,
+                    RagResponseParser.extractReferenceTexts(referenceList), null,
+                    RagResponseParser.parseReferences(referenceList));
         }
         if (references instanceof List<?> referenceList) {
-            return RagStreamLine.references(
-                    RagResponseParser.extractReferenceTexts(referenceList));
+            return new RagStreamLine(RagStreamLine.Kind.REFERENCES, null,
+                    RagResponseParser.extractReferenceTexts(referenceList), null,
+                    RagResponseParser.parseReferences(referenceList));
         }
         if (content instanceof String contentText && !contentText.isEmpty()) {
             return RagStreamLine.content(contentText);
@@ -247,6 +255,7 @@ public class RagStreamClient {
         private final StringBuilder answer = new StringBuilder();
 
         private List<String> contexts = List.of();
+        private List<RagReference> references = List.of();
 
         private StreamCollector(String mode, Consumer<RagStreamLine> lineConsumer) {
             this.mode = mode;
@@ -262,6 +271,9 @@ public class RagStreamClient {
          * @param line 已解析的行
          */
         private void acceptLine(RagStreamLine line) {
+            if (!line.referenceDetails().isEmpty()) {
+                references = line.referenceDetails();
+            }
             if (!line.references().isEmpty()) {
                 contexts = line.references();
             }
@@ -279,7 +291,7 @@ public class RagStreamClient {
          * @return 已收到的正文与上下文
          */
         private RagQueryResult toResult() {
-            return new RagQueryResult(answer.toString(), contexts, mode);
+            return new RagQueryResult(answer.toString(), contexts, mode, references);
         }
     }
 }

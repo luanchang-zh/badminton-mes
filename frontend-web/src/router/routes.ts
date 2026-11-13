@@ -144,6 +144,12 @@ export const menuRoutes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: '/rag/chat',
+    name: 'RagChatView',
+    component: () => import('@/views/rag/RagChatView.vue'),
+    meta: { title: '知识库问答', icon: 'ChatDotRound' },
+  },
+  {
     path: '/system',
     redirect: '/system/users',
     meta: { title: '系统管理', icon: 'Setting', roles: [ROLES.ADMIN] },

@@ -53,6 +53,28 @@ class RagClientTest {
 
     private RagClient client;
 
+    @Test
+    void historyIsForwardedAndStructuredSourcesHideServerDirectories() {
+        server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/query"))
+                .andExpect(content().json("""
+                        {"conversation_history":[{"role":"user","content":"点检要求"},
+                        {"role":"assistant","content":"先停机"}]}
+                        """))
+                .andRespond(withSuccess("""
+                        {"response":"执行检查 [7]","references":[
+                        {"reference_id":"7","file_path":"/private/tenant/sop.md","content":["片段一","片段二"]}]}
+                        """, MediaType.APPLICATION_JSON));
+        var result = client.query(TENANT, "第二项呢", "mix", List.of(
+                new com.badminton.mes.module.rag.client.dto.RagHistoryMessage("user", "点检要求"),
+                new com.badminton.mes.module.rag.client.dto.RagHistoryMessage("assistant", "先停机")));
+        assertThat(result.references()).singleElement().satisfies(ref -> {
+            assertThat(ref.referenceId()).isEqualTo("7");
+            assertThat(ref.sourceName()).isEqualTo("sop.md");
+            assertThat(ref.chunks()).containsExactly("片段一", "片段二");
+        });
+        server.verify();
+    }
+
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();

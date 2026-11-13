@@ -43,8 +43,8 @@ public final class SystemRedisKeyConstants {
     /** 人脸写操作单用户互斥锁 Key 模板，参数为用户 id，值为加锁方随机令牌 */
     public static final String FACE_USER_LOCK = "mes:system:face:lock:user:%d";
 
-    /** 人脸单用户锁过期时间，覆盖 InsightFace 最长读超时并留出余量 */
-    public static final Duration FACE_USER_LOCK_TTL = Duration.ofSeconds(60);
+    /** 人脸单用户锁过期时间，覆盖重新采集的删除、创建及补偿调用并留出余量 */
+    public static final Duration FACE_USER_LOCK_TTL = Duration.ofMinutes(5);
 
     /**
      * 构造会话正查 Key。

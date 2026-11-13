@@ -2,6 +2,8 @@ package com.badminton.mes.module.rag.controller.vo;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Pattern;
 
 import com.badminton.mes.module.rag.enums.RagQueryMode;
 
@@ -22,7 +24,15 @@ public record RagQueryReqVO(
         @Size(max = 2000, message = "问题长度不能超过 2000")
         String question,
 
-        String mode) {
+        String mode,
+
+        @Positive Long conversationId,
+
+        @Pattern(regexp = "[A-Za-z0-9_-]{8,64}") String requestId) {
+
+    public RagQueryReqVO(String question, String mode) {
+        this(question, mode, null, null);
+    }
 
     /**
      * 取生效的检索模式，未指定时用缺省模式。

@@ -96,7 +96,7 @@ public class InsightFaceClient {
 
     private final RestClient restClient;
 
-    /** 登录搜索使用短超时，注册和资料管理继续使用原有超时。 */
+    /** 登录搜索连接最多 1 秒、读取最多 30 秒，注册和资料管理继续使用原有超时。 */
     private final RestClient loginRestClient;
 
     private final ObjectMapper objectMapper;
@@ -119,8 +119,8 @@ public class InsightFaceClient {
                 RestClient.builder().requestFactory(createRequestFactory(
                         properties.getConnectTimeout().compareTo(Duration.ofSeconds(1)) < 0
                                 ? properties.getConnectTimeout() : Duration.ofSeconds(1),
-                        properties.getReadTimeout().compareTo(Duration.ofSeconds(2)) < 0
-                                ? properties.getReadTimeout() : Duration.ofSeconds(2))));
+                        properties.getReadTimeout().compareTo(Duration.ofSeconds(30)) < 0
+                                ? properties.getReadTimeout() : Duration.ofSeconds(30))));
     }
 
     /**

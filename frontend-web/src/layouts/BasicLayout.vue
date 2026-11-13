@@ -11,6 +11,7 @@ import { findMenuChain, menuRoutes } from '@/router/routes'
 import SidebarMenuItem from './components/SidebarMenuItem.vue'
 import TagsView from './components/TagsView.vue'
 import FaceEnrollment from '@/components/face/FaceEnrollment.vue'
+import brandIcon from '@/assets/images/sidebar-mes-logo-refined.webp'
 
 defineOptions({ name: 'BasicLayout' })
 
@@ -117,8 +118,11 @@ async function handleUserCommand(command: string | number | object) {
 <template>
   <el-container class="basic-layout">
     <el-aside :width="asideWidth" class="basic-layout__aside">
-      <div class="basic-layout__logo">
-        {{ appStore.sidebarCollapsed ? 'MES' : '羽毛球 MES' }}
+      <div class="basic-layout__logo" role="img" aria-label="羽毛球 MES">
+        <span class="basic-layout__brand-icon" aria-hidden="true">
+          <img class="basic-layout__brand-image" :src="brandIcon" alt="" width="64" height="64" />
+        </span>
+        <span v-if="!appStore.sidebarCollapsed">羽毛球 MES</span>
       </div>
       <el-scrollbar>
         <el-menu
@@ -234,12 +238,33 @@ async function handleUserCommand(command: string | number | object) {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  gap: 10px;
   height: var(--mes-header-height);
   font-size: 16px;
   font-weight: 600;
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
+}
+
+.basic-layout__brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+}
+
+.basic-layout__brand-image {
+  display: block;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  max-width: none;
+  object-fit: contain;
 }
 
 .basic-layout__menu {

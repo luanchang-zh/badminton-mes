@@ -1,4 +1,5 @@
 async (page) => {
+  const baseURL = /^https?:/.test(page.url()) ? new URL(page.url()).origin : 'http://127.0.0.1:5173'
   const context = await page.context().browser().newContext({ viewport: { width: 1504, height: 1046 } })
   const p = await context.newPage()
   const assert = (value, message) => { if (!value) throw new Error(message) }
@@ -27,7 +28,7 @@ async (page) => {
       window.__tracks.push(...stream.getTracks()); return stream
     } })
   })
-  await p.route('http://127.0.0.1:5173/api/**', async route => {
+  await p.route(`${baseURL}/api/**`, async route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/face_login')) {
       requests++
@@ -35,6 +36,7 @@ async (page) => {
       assert((body.match(/name="image"/g) || []).length === 1, 'One automatically sampled image must reach backend')
       if (mode === 'unavailable') { await route.fulfill({ status: 502, contentType: 'text/plain', body: '' }); return }
       if (mode === 'hold') { pendingRoute = route; return }
+      if (mode === 'slow') await new Promise(resolve => setTimeout(resolve, 6000))
       if (mode === 'quality' && requests === 1 || mode === 'bad') {
         await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 'A0700', message: '照片不合格', userTip: '请将面部放入轮廓', data: null }) }); return
       }
@@ -47,7 +49,7 @@ async (page) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify(success(data)) })
   })
   const fresh = async () => {
-    await p.goto('http://127.0.0.1:5173/login')
+    await p.goto(`${baseURL}/login`)
     await p.getByRole('tab', { name: '人脸登录', exact: true }).waitFor()
     requests = 0; pendingRoute = undefined
   }
@@ -71,6 +73,11 @@ async (page) => {
     assert(requests === 2 && Date.now() - start < 5000, 'Rejected quality frame should automatically resample within same deadline')
     checks.push({ scene: 'Automatic resample after bad frame', requests, elapsedMs: Date.now() - start })
 
+    mode = 'slow'; await fresh(); start = Date.now(); await begin(); await p.waitForURL('**/dashboard')
+    const slowSuccessMs = Date.now() - start
+    assert(slowSuccessMs > 5000 && slowSuccessMs < 30000 && requests === 1 && await stopped(), 'Response beyond five seconds must still log in within new round')
+    checks.push({ scene: 'Six-second recognition response succeeds within thirty-second budget', elapsedMs: slowSuccessMs })
+
     mode = 'bad'; await fresh(); await begin(); await p.locator('.face-capture__error').waitFor(); await p.waitForTimeout(800)
     assert(requests === 3 && await stopped(), 'Bad frames must stop after three samples')
     assert(await p.locator('.el-message--error').count() === 0, 'Intermediate errors should not create global toast spam')
@@ -93,21 +100,32 @@ async (page) => {
     await p.setViewportSize({ width: 1504, height: 1046 })
 
 
-    mode = 'hold'; await fresh(); start = Date.now(); await begin(); await p.locator('.face-capture__error').filter({ hasText: '超时' }).waitFor()
-    const timeoutMs = Date.now() - start
-    assert(timeoutMs < 5000 && await stopped(), 'Hung request must stop inside five-second round')
+    await p.clock.install()
+    mode = 'hold'; await fresh(); await begin()
+    await p.waitForFunction(() => document.querySelector('.face-capture__auto-status')?.textContent.includes('正在验证'))
+    assert((await p.locator('.face-capture__auto-status').textContent()).includes('最长 30 秒'), 'Visible timing must match thirty-second budget')
+    await p.clock.fastForward(6000)
+    assert(await p.locator('.face-capture__error').count() === 0 && !await stopped(), 'Hung request must remain active beyond original five-second deadline')
+    await p.clock.fastForward(24000)
+    await p.locator('.face-capture__error').filter({ hasText: '30秒' }).waitFor()
+    const timeoutMs = await p.evaluate(() => window.__stoppedAt - window.__cameraReadyAt)
+    assert(timeoutMs >= 29800 && timeoutMs < 32000 && await stopped(), 'Hung request must stop at the thirty-second round deadline')
     await pendingRoute.fulfill({ contentType: 'application/json', body: JSON.stringify(success(user)) }).catch(() => {})
     await p.waitForTimeout(250)
     assert(await p.evaluate(() => localStorage.getItem('mes_token')) === null && new URL(p.url()).pathname === '/login', 'Late success must not establish session')
     checks.push({ scene: 'Slow response timeout and late response ignored', elapsedMs: timeoutMs })
 
     await fresh(); await p.evaluate(() => { window.__stallEncode = true }); start = Date.now(); await begin()
-    await p.locator('.face-capture__error').filter({ hasText: '5秒' }).waitFor()
+    await p.waitForFunction(() => typeof window.__releaseEncode === 'function')
+    await p.clock.fastForward(6000)
+    assert(await p.locator('.face-capture__error').count() === 0, 'Encoding must remain allowed beyond original five-second deadline')
+    await p.clock.fastForward(24000)
+    await p.locator('.face-capture__error').filter({ hasText: '30秒' }).waitFor()
     const encodeTimeoutMs = await p.evaluate(() => window.__stoppedAt - window.__cameraReadyAt)
-    assert(encodeTimeoutMs < 5000 && requests === 0 && await stopped(), 'Entire sample/encode stage deadline: ' + JSON.stringify({ encodeTimeoutMs, requests, stopped: await stopped() }))
+    assert(encodeTimeoutMs >= 29800 && encodeTimeoutMs < 32000 && requests === 0 && await stopped(), 'Entire sample/encode stage deadline: ' + JSON.stringify({ encodeTimeoutMs, requests, stopped: await stopped() }))
     await p.evaluate(() => window.__releaseEncode?.()); await p.waitForTimeout(150)
     assert(requests === 0, 'Late canvas callback must not submit after timeout')
-    checks.push({ scene: 'Five-second deadline includes stalled image encoding', elapsedMs: encodeTimeoutMs })
+    checks.push({ scene: 'Thirty-second deadline includes stalled image encoding', elapsedMs: encodeTimeoutMs })
 
     await fresh(); await begin(); await p.waitForFunction(() => document.querySelector('.face-capture__auto-status')?.textContent.includes('正在验证'))
     await p.getByRole('tab', { name: '密码登录', exact: true }).click(); await p.waitForTimeout(150)
@@ -120,6 +138,6 @@ async (page) => {
     await fresh(); await begin(); await p.waitForFunction(() => document.querySelector('video')?.videoWidth > 0)
     await p.screenshot({ animations: 'disabled', path: '/home/liuhan/StudyDir/ProfessionalPractice/badminton-mes/docs/design/login/face/auto-face-contour.png' })
     await p.getByRole('tab', { name: '密码登录', exact: true }).click()
-    return { checks, mode: 'Simulated camera and API; actual browser timers and cancellation' }
+    return { checks, mode: 'Simulated camera and API; real six-second response; Playwright clock for thirty-second deadlines and cancellation' }
   } finally { await context.close() }
 }

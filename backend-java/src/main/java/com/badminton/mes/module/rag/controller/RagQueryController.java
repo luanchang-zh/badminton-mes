@@ -4,6 +4,7 @@ import com.badminton.mes.common.core.CommonResult;
 import com.badminton.mes.module.rag.controller.vo.RagQueryReqVO;
 import com.badminton.mes.module.rag.controller.vo.RagQueryRespVO;
 import com.badminton.mes.module.rag.service.RagQueryService;
+import com.badminton.mes.module.rag.service.RagChatService;
 
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,14 +28,16 @@ import jakarta.validation.Valid;
 public class RagQueryController {
 
     private final RagQueryService ragQueryService;
+    private final RagChatService chatService;
 
     /**
      * 构造器注入，依赖不可变。
      *
      * @param ragQueryService 问答 Service
      */
-    public RagQueryController(RagQueryService ragQueryService) {
+    public RagQueryController(RagQueryService ragQueryService, RagChatService chatService) {
         this.ragQueryService = ragQueryService;
+        this.chatService = chatService;
     }
 
     /**
@@ -44,7 +47,11 @@ public class RagQueryController {
      * @return 回答与检索上下文
      */
     @PostMapping
-    public CommonResult<RagQueryRespVO> query(@Valid @RequestBody RagQueryReqVO reqVO) {
+    public CommonResult<?> query(@Valid @RequestBody RagQueryReqVO reqVO) {
+        if (reqVO.conversationId() != null) {
+            return CommonResult.success(chatService.query(reqVO.conversationId(), reqVO.requestId(),
+                    reqVO.question(), reqVO.effectiveMode()));
+        }
         return CommonResult.success(
                 RagQueryRespVO.from(ragQueryService.query(
                         reqVO.question(), reqVO.effectiveMode())));
@@ -63,6 +70,9 @@ public class RagQueryController {
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamQuery(@Valid @RequestBody RagQueryReqVO reqVO) {
+        if (reqVO.conversationId() != null) {
+            return chatService.stream(reqVO.conversationId(), reqVO.requestId(), reqVO.question(), reqVO.effectiveMode());
+        }
         return ragQueryService.streamQuery(reqVO.question(), reqVO.effectiveMode());
     }
 }

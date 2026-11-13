@@ -2,6 +2,7 @@ package com.badminton.mes.module.rag.client;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.badminton.mes.module.rag.client.dto.RagReference;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -94,6 +95,31 @@ final class RagResponseParser {
             return List.of();
         }
         return extractReferenceTexts(references);
+    }
+
+    /** 保留引用编号和所有片段，并去掉 Unix/Windows 服务端目录。 */
+    static List<RagReference> parseReferences(List<?> references) {
+        List<RagReference> result = new ArrayList<>();
+        for (Object item : references) {
+            if (!(item instanceof Map<?, ?> source)) {
+                continue;
+            }
+            String id = source.get("reference_id") instanceof String s ? s : "";
+            String path = source.get("file_path") instanceof String s ? s.replace('\\', '/') : "";
+            String name = path.substring(path.lastIndexOf('/') + 1);
+            Object content = source.get("content");
+            List<String> chunks = content instanceof List<?> list
+                    ? list.stream().filter(String.class::isInstance).map(String.class::cast)
+                        .filter(s -> !s.isBlank()).toList()
+                    : content instanceof String s && !s.isBlank() ? List.of(s) : List.of();
+            result.add(new RagReference(id, name.isBlank() ? "未命名文档" : name, chunks));
+        }
+        return List.copyOf(result);
+    }
+
+    static List<RagReference> parseReferences(Map<String, Object> response) {
+        return response != null && response.get("references") instanceof List<?> list
+                ? parseReferences(list) : List.of();
     }
 
     /**

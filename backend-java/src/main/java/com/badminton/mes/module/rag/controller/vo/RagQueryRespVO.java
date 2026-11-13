@@ -3,6 +3,7 @@ package com.badminton.mes.module.rag.controller.vo;
 import java.util.List;
 
 import com.badminton.mes.module.rag.client.dto.RagQueryResult;
+import com.badminton.mes.module.rag.client.dto.RagReference;
 
 /**
  * 同步问答响应。
@@ -13,7 +14,8 @@ import com.badminton.mes.module.rag.client.dto.RagQueryResult;
  * @author 张竹灏
  * @date 2026/11/08
  */
-public record RagQueryRespVO(String answer, List<String> contexts, String mode) {
+public record RagQueryRespVO(String answer, List<String> contexts, String mode,
+                             List<RagReference> references) {
 
     /**
      * 从客户端结果转换。
@@ -22,6 +24,6 @@ public record RagQueryRespVO(String answer, List<String> contexts, String mode) 
      * @return 响应对象
      */
     public static RagQueryRespVO from(RagQueryResult result) {
-        return new RagQueryRespVO(result.answer(), result.contexts(), result.mode());
+        return new RagQueryRespVO(result.answer(), result.contexts(), result.mode(), result.references());
     }
 }

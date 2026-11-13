@@ -26,12 +26,33 @@ import org.springframework.web.multipart.MultipartFile;
  */
 public record FaceImage(String filename, byte[] bytes, MediaType mediaType) {
 
+    private static final long MAX_UPLOAD_BYTES = 10L * 1024 * 1024;
+
+    /**
+     * 人脸接口单独限制每张照片 10MB，避免受 RAG 文档的全局上传上限影响。
+     *
+     * @param files 上传照片
+     * @throws ServiceException 任一照片超过 10MB 时抛 A0702
+     */
+    public static void validateUploadSizes(List<MultipartFile> files) {
+        for (MultipartFile file : files) {
+            validateUploadSize(file);
+        }
+    }
+
+    private static void validateUploadSize(MultipartFile file) {
+        if (file.getSize() > MAX_UPLOAD_BYTES) {
+            throw new ServiceException(GlobalErrorCodeConstants.UPLOAD_FILE_TOO_LARGE,
+                    "人脸照片单张不能超过 10MB");
+        }
+    }
+
     /**
      * 把上传文件逐个校验并转换为人脸照片，序号从 1 开始。
      *
      * @param files 上传文件，调用方已校验张数
      * @return 人脸照片，顺序与上传顺序一致
-     * @throws ServiceException 任一文件不是 JPEG、PNG、WebP 时抛 A0701
+     * @throws ServiceException 任一照片超过 10MB 时抛 A0702，格式错误时抛 A0701
      */
     public static List<FaceImage> fromUploads(List<MultipartFile> files) {
         List<FaceImage> images = new ArrayList<>(files.size());
@@ -47,9 +68,10 @@ public record FaceImage(String filename, byte[] bytes, MediaType mediaType) {
      * @param index 从 1 开始的上传序号
      * @param file 上传文件
      * @return 人脸照片
-     * @throws ServiceException 文件不是 JPEG、PNG、WebP 时抛 A0701
+     * @throws ServiceException 照片超过 10MB 时抛 A0702，格式错误时抛 A0701
      */
     public static FaceImage fromUpload(int index, MultipartFile file) {
+        validateUploadSize(file);
         byte[] bytes;
         try {
             bytes = file.getBytes();

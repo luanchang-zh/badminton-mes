@@ -173,6 +173,9 @@ public class RagQueryServiceImpl implements RagQueryService {
      * @param line     已解析的上游行
      */
     private void forwardLine(SseEmitter emitter, String tenantId, RagStreamLine line) {
+        if (!line.referenceDetails().isEmpty()) {
+            sendEvent(emitter, RagSseEventNames.REFERENCE_DETAILS, line.referenceDetails());
+        }
         // 参考片段可能随缓存命中的合并行一起到达，先发 references 再发正文
         if (!line.references().isEmpty()) {
             sendEvent(emitter, RagSseEventNames.REFERENCES,

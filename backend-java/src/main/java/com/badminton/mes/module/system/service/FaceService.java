@@ -32,6 +32,19 @@ public interface FaceService {
     FaceEnrollRespVO enroll(LoginUser loginUser, List<MultipartFile> images, Boolean consent);
 
     /**
+     * 重新采集本人全部样本。先校验上传，在同一用户锁内关闭旧注册并重新注册。
+     *
+     * <p>旧特征删除成功后，新照片全部拒收或注册失败时保持未注册状态，可重新提交。
+     * 未注册用户也可调用。必须再次同意人脸信息处理说明。
+     *
+     * @param loginUser 当前登录用户
+     * @param images 2～3 张新照片
+     * @param consent 是否已勾选人脸信息处理同意
+     * @return 本次采集结果，faceCount 仅计算新样本
+     */
+    FaceEnrollRespVO reenroll(LoginUser loginUser, List<MultipartFile> images, Boolean consent);
+
+    /**
      * 查询本人人脸登录状态。
      *
      * @param loginUser 当前登录用户

@@ -1,0 +1,58 @@
+[
+  {
+    "slug": "workspace-settings-formcraft-two-column-cobalt",
+    "title": "Workspace Settings · Formcraft (two-column, cobalt)",
+    "url": "https://p.superdesign.dev/draft/e7ec15e8-44c6-499d-a711-25578a88b421",
+    "type": "风格和布局说明",
+    "reason": "采用页面宽度、设置页层级和中性色配单一蓝色。",
+    "source": "/home/liuhan/.local/share/ai-ui-workflow/references/superdesign-prompts/prompts/workspace-settings-formcraft-two-column-cobalt/README.md"
+  },
+  {
+    "slug": "formcraft-workspace-settings-cobalt-two-column",
+    "title": "Formcraft — Workspace Settings (cobalt two-column)",
+    "url": "https://p.superdesign.dev/draft/60697ec6-b6f8-4d17-8b48-3729600554c2",
+    "type": "风格和布局说明",
+    "reason": "对照控件密度与操作区，合并重复的设置页方向。",
+    "source": "/home/liuhan/.local/share/ai-ui-workflow/references/superdesign-prompts/prompts/formcraft-workspace-settings-cobalt-two-column/README.md"
+  },
+  {
+    "slug": "verify-its-you-aperture-otp-2fa-graphite-platinum",
+    "title": "Verify it's you · Aperture (OTP / 2FA, graphite-platinum)",
+    "url": "https://p.superdesign.dev/draft/a40c68d3-ca57-4c9f-834e-a4de361c7f1b",
+    "type": "风格和布局说明",
+    "reason": "参考验证任务的视觉聚焦，去掉胶囊、玻璃和辅助标签。",
+    "source": "/home/liuhan/.local/share/ai-ui-workflow/references/superdesign-prompts/prompts/verify-its-you-aperture-otp-2fa-graphite-platinum/README.md"
+  },
+  {
+    "slug": "forms-that-feel-effortless-to-fill-fieldcraft",
+    "title": "Forms that feel effortless to fill — Fieldcraft",
+    "url": "https://p.superdesign.dev/draft/1e008422-dd41-414e-aa04-f6b300ad210d",
+    "type": "风格和布局说明",
+    "reason": "采用表单分组和底部操作，保留项目蓝色。",
+    "source": "/home/liuhan/.local/share/ai-ui-workflow/references/superdesign-prompts/prompts/forms-that-feel-effortless-to-fill-fieldcraft/README.md"
+  },
+  {
+    "slug": "multi-step-form-flow",
+    "title": "Multi-step Form Flow",
+    "url": "https://superdesign.dev/library/multi-step-form-flow?utm_source=github&utm_medium=prompt-repo&utm_campaign=prompt-library",
+    "type": "布局与交互示例（含参考 HTML）",
+    "reason": "借鉴单一步骤与前后推进关系；本次仍为桌面界面。",
+    "source": "/home/liuhan/.local/share/ai-ui-workflow/references/superdesign-prompts/prompts/multi-step-form-flow/README.md"
+  },
+  {
+    "slug": "editorial-saas-onboarding",
+    "title": "Editorial SaaS Onboarding",
+    "url": "https://superdesign.dev/library/editorial-saas-onboarding?utm_source=github&utm_medium=prompt-repo&utm_campaign=prompt-library",
+    "type": "风格和布局说明",
+    "reason": "比较后保留后台字体，舍弃衬线大标题和陶土色。",
+    "source": "/home/liuhan/.local/share/ai-ui-workflow/references/superdesign-prompts/prompts/editorial-saas-onboarding/README.md"
+  },
+  {
+    "slug": "superdesign-setup-inline-preview",
+    "title": "Superdesign Setup - Inline Preview",
+    "url": "https://superdesign.dev/library/superdesign-setup-inline-preview?utm_source=github&utm_medium=prompt-repo&utm_campaign=prompt-library",
+    "type": "风格和布局说明",
+    "reason": "参考即时预览与操作反馈，去掉技术字段和终端装饰。",
+    "source": "/home/liuhan/.local/share/ai-ui-workflow/references/superdesign-prompts/prompts/superdesign-setup-inline-preview/README.md"
+  }
+]

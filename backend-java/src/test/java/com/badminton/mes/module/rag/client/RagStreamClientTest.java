@@ -56,6 +56,28 @@ class RagStreamClientTest {
 
     private RagStreamClient client;
 
+    @Test
+    void cachedStreamKeepsHistoryAndStructuredReferenceDetails() {
+        server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/query/stream"))
+                .andExpect(content().json("""
+                        {"conversation_history":[{"role":"user","content":"前一个问题"}]}
+                        """))
+                .andRespond(withSuccess("""
+                        {"references":[{"reference_id":"2","file_path":"C:\\\\data\\\\sop.md","content":["原文"]}],"response":"完整回答 [2]"}
+                        """, NDJSON));
+        List<RagStreamLine> lines = new ArrayList<>();
+        var result = client.streamQuery(TENANT, "追问", RagQueryMode.MIX,
+                List.of(new com.badminton.mes.module.rag.client.dto.RagHistoryMessage("user", "前一个问题")),
+                lines::add, new StreamCancellation());
+        assertThat(result.references()).singleElement().satisfies(ref -> {
+            assertThat(ref.sourceName()).isEqualTo("sop.md");
+            assertThat(ref.referenceId()).isEqualTo("2");
+        });
+        assertThat(lines.getFirst().referenceDetails()).isEqualTo(result.references());
+        assertThat(result.answer()).isEqualTo("完整回答 [2]");
+        server.verify();
+    }
+
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();

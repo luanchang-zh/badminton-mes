@@ -17,12 +17,18 @@ import java.util.List;
 public record RagQueryResult(
         String answer,
         List<String> contexts,
-        String mode) {
+        String mode,
+        List<RagReference> references) {
+
+    public RagQueryResult(String answer, List<String> contexts, String mode) {
+        this(answer, contexts, mode, List.of());
+    }
 
     /**
      * 紧凑构造器：把 null 列表归一化为空列表，避免调用方到处判空。
      */
     public RagQueryResult {
         contexts = contexts == null ? List.of() : List.copyOf(contexts);
+        references = references == null ? List.of() : List.copyOf(references);
     }
 }

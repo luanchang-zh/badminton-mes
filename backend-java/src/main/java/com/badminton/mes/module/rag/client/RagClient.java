@@ -3,18 +3,21 @@ package com.badminton.mes.module.rag.client;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.function.Supplier;
 
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.module.rag.client.dto.RagDocumentDTO;
 import com.badminton.mes.module.rag.client.dto.RagGraphResult;
 import com.badminton.mes.module.rag.client.dto.RagQueryResult;
+import com.badminton.mes.module.rag.client.dto.RagHistoryMessage;
 import com.badminton.mes.module.rag.config.RagProperties;
 import com.badminton.mes.module.rag.constants.RagErrorCodeConstants;
 import com.badminton.mes.module.rag.enums.RagQueryMode;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -62,6 +65,7 @@ public class RagClient {
      *
      * @param properties 上游配置
      */
+    @Autowired
     public RagClient(RagProperties properties) {
         this(properties, RagRestClientFactory.build(properties, properties.getReadTimeout()));
     }
@@ -199,6 +203,11 @@ public class RagClient {
      * @throws ServiceException 租户标识非法、模式不支持或上游失败
      */
     public RagQueryResult query(String tenantId, String question, String mode) {
+        return query(tenantId, question, mode, List.of());
+    }
+
+    /** 发起携带服务端历史的问答。 */
+    public RagQueryResult query(String tenantId, String question, String mode, List<RagHistoryMessage> history) {
         String safeTenant = RagTenantGuard.requireValid(tenantId);
         // 模式白名单只在 RagQueryMode 维护一份，这里直接解析，非法取值在发请求前抛错
         String safeMode = RagQueryMode.parse(mode).getValue();
@@ -206,19 +215,27 @@ public class RagClient {
                 .uri(RagTenantGuard.tenantUri(properties, safeTenant, "query"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .headers(headers -> headers.set("X-API-Key", RagTenantGuard.apiKey(properties)))
-                .body(Map.of(
-                        "query", question == null ? "" : question,
-                        "mode", safeMode,
-                        "include_references", true,
-                        // 不打开这个开关，上游 references 里只有文件路径，没有片段正文
-                        "include_chunk_content", true))
+                .body(queryPayload(question, safeMode, history))
                 .retrieve()
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {
                 }));
         return new RagQueryResult(
                 RagResponseParser.stringValue(response, "response", "answer"),
                 RagResponseParser.parseContexts(response),
-                safeMode);
+                safeMode, RagResponseParser.parseReferences(response));
+    }
+
+    static Map<String, Object> queryPayload(String question, String mode, List<RagHistoryMessage> history) {
+        Map<String, Object> payload = new LinkedHashMap<>(Map.of(
+                        "query", question == null ? "" : question,
+                        "mode", mode,
+                        "include_references", true,
+                        // 不打开这个开关，上游 references 里只有文件路径，没有片段正文
+                        "include_chunk_content", true));
+        if (history != null && !history.isEmpty()) {
+            payload.put("conversation_history", history);
+        }
+        return payload;
     }
 
     /**

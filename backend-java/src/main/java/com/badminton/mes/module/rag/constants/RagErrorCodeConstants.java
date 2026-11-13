@@ -70,4 +70,13 @@ public final class RagErrorCodeConstants {
 
     private RagErrorCodeConstants() {
     }
+
+    public static final ErrorCode CONVERSATION_NOT_FOUND =
+            new ErrorCode("A0440", "会话或消息不存在", "会话或消息不存在，请刷新后重试");
+    public static final ErrorCode GENERATION_BUSY =
+            new ErrorCode("A0409", "会话正在生成回答", "请先停止当前回答，再发送新问题");
+    public static final ErrorCode REQUEST_CONFLICT =
+            new ErrorCode("A0409", "请求编号与已保存问题不一致", "请使用新的请求编号重新发送");
+    public static final ErrorCode RETRY_NOT_ALLOWED =
+            new ErrorCode("A0400", "当前消息不支持重试", "只能重试失败或已停止的回答");
 }

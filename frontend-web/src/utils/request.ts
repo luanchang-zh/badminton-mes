@@ -130,7 +130,7 @@ let redirectingToLogin = false
  * 用 location 而非 router，避免 request → router → store → request 循环依赖，
  * 且整页刷新可一并重置 Pinia 内存态。
  */
-function redirectToLogin() {
+export function redirectToLogin() {
   // 并发请求可能同时收到 401；标志位确保只执行一次清理和跳转，避免重复导航。
   if (redirectingToLogin) return
   redirectingToLogin = true

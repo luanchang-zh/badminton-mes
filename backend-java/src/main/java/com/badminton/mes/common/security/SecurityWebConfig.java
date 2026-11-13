@@ -69,7 +69,7 @@ public class SecurityWebConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOrigins(allowedOrigins.toArray(String[]::new))
                 // 显式列出系统实际使用的请求方法和请求头，预检请求可据此快速完成权限判断。
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE)
                 // 系统通过 Authorization Bearer token 鉴权，不依赖跨域 Cookie，因此禁止携带凭据。
                 .allowCredentials(false)

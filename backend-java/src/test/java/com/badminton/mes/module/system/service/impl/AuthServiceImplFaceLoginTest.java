@@ -21,7 +21,6 @@ import java.util.Optional;
 import com.badminton.mes.common.core.ErrorCode;
 import com.badminton.mes.common.core.GlobalErrorCodeConstants;
 import com.badminton.mes.common.exception.ServiceException;
-import com.badminton.mes.common.security.RoleCodeConstants;
 import com.badminton.mes.module.system.config.InsightFaceProperties;
 import com.badminton.mes.module.system.constants.SystemErrorCodeConstants;
 import com.badminton.mes.module.system.controller.vo.AuthLoginRespVO;
@@ -42,6 +41,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
@@ -98,17 +99,18 @@ class AuthServiceImplFaceLoginTest {
         lenient().when(faceLoginFailRedisDAO.getFailCount(IP)).thenReturn(0L);
     }
 
-    @Test
-    @DisplayName("成功：响应与密码登录一致(含微信字段)，记录登录时间，不清零失败计数")
-    void faceLoginSuccess() {
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "PMC", "WORKSHOP_MANAGER", "TEAM_LEADER", "OPERATOR", "INSPECTOR", "CRAFT_ENGINEER"})
+    @DisplayName("成功：所有角色均可人脸登录，响应与密码登录一致，记录登录时间")
+    void faceLoginSuccess(String role) {
         FaceBindingEntity binding = binding();
         when(faceService.recognize(any())).thenReturn(binding);
         UserEntity user = user(1);
         when(userRepository.findByIdAndDeletedFalse(USER_ID)).thenReturn(Optional.of(user));
-        when(authenticationSupport.loadEnabledRoleCodes(USER_ID)).thenReturn(List.of(RoleCodeConstants.OPERATOR));
         AuthLoginRespVO session = new AuthLoginRespVO();
         session.setToken("t");
         session.setUserId(USER_ID);
+        session.setRoleCodes(List.of(role));
         when(authenticationSupport.createSession(user)).thenReturn(session);
         WechatUserBindingEntity wechat = new WechatUserBindingEntity();
         wechat.setCreateTime(LocalDateTime.of(2026, 7, 16, 9, 0));
@@ -117,6 +119,7 @@ class AuthServiceImplFaceLoginTest {
         AuthLoginRespVO response = service.faceLogin(List.of(jpeg()), IP);
 
         assertThat(response.getToken()).isEqualTo("t");
+        assertThat(response.getRoleCodes()).containsExactly(role);
         assertThat(response.isWechatBound()).isTrue();
         assertThat(response.getWechatBindingTime()).isEqualTo(wechat.getCreateTime());
         verify(faceService).recordLogin(binding);
@@ -166,20 +169,17 @@ class AuthServiceImplFaceLoginTest {
     }
 
     @Test
-    @DisplayName("核对用户：不存在 A0200、停用 A0202、ADMIN A0220，都不发会话并计数")
+    @DisplayName("核对用户：不存在 A0200、停用 A0202，都不发会话并计数")
     void faceLoginChecksUser() {
         when(faceService.recognize(any())).thenReturn(binding());
         when(userRepository.findByIdAndDeletedFalse(USER_ID))
-                .thenReturn(Optional.empty(), Optional.of(user(0)), Optional.of(user(1)));
-        when(authenticationSupport.loadEnabledRoleCodes(USER_ID)).thenReturn(List.of(RoleCodeConstants.ADMIN));
+                .thenReturn(Optional.empty(), Optional.of(user(0)));
 
         assertServiceError(() -> service.faceLogin(List.of(jpeg()), IP), SystemErrorCodeConstants.FACE_LOGIN_REJECTED);
         assertServiceError(() -> service.faceLogin(List.of(jpeg()), IP), SystemErrorCodeConstants.LOGIN_USER_DISABLED);
-        assertServiceError(() -> service.faceLogin(List.of(jpeg()), IP),
-                SystemErrorCodeConstants.FACE_LOGIN_ADMIN_FORBIDDEN);
 
         verify(authenticationSupport, never()).createSession(any());
-        verify(faceLoginFailRedisDAO, times(3)).recordFail(eq(IP), any());
+        verify(faceLoginFailRedisDAO, times(2)).recordFail(eq(IP), any());
     }
 
     private static MultipartFile jpeg() {

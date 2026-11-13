@@ -19,7 +19,7 @@ public class FaceProfileRespVO {
     /** 是否存在有效绑定 */
     private Boolean enrolled;
 
-    /** 当前账号能否使用人脸登录；含 ADMIN 角色时为 false，前端只保留「关闭人脸登录」 */
+    /** 当前账号能否使用人脸登录；所有已登录用户均为 true，与角色及登录方式无关 */
     private Boolean faceLoginAllowed;
 
     /** 样本数 */

@@ -36,6 +36,9 @@
 /frontend-web/design/assets/
 !/frontend-web/src/assets/images/login-reference-background.webp
 !/frontend-web/src/assets/images/login-shuttlecock.webp
+!/frontend-web/src/assets/images/face-pose-examples.webp
+!/frontend-web/src/assets/images/sidebar-mes-logo-refined.webp
+/frontend-web/src/assets/mes-mark.svg
 
 # ==============================================================================
 # 操作系统与文件管理器生成文件
@@ -293,6 +296,7 @@ allure-results/
 allure-report/
 test-results/
 playwright-report/
+.playwright-mcp/
 blob-report/
 test-output/
 

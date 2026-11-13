@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios'
 import { Camera, VideoCamera, RefreshRight, Check } from '@element-plus/icons-vue'
 import FaceScanIcon from './FaceScanIcon.vue'
 import { ApiError } from '@/utils/request'
-import type { FaceLoginRequestOptions } from '@/api/face'
+import { FACE_LOGIN_TIMEOUT_MS, type FaceLoginRequestOptions } from '@/api/face'
 
 const props = withDefaults(defineProps<{
   mode: 'login' | 'enroll'
@@ -65,8 +65,8 @@ function startAutoLogin() {
   const round = autoRound
   const controller = new AbortController()
   autoController = controller
-  // 为页面结果绘制预留 200ms，整轮交互预算为 5 秒。
-  const budgetMs = 4800
+  // 为页面结果绘制预留 200ms，整轮交互预算为 30 秒。
+  const budgetMs = FACE_LOGIN_TIMEOUT_MS - 200
   const deadline = performance.now() + budgetMs
   autoPhase.value = 'aligning'
   let attempts = 0
@@ -76,7 +76,7 @@ function startAutoLogin() {
     stopCamera()
   }
   autoTimer = setTimeout(() => {
-    if (round === autoRound) fail('本次验证已超时（5秒），请调整位置后重新验证。')
+    if (round === autoRound) fail('本次验证已超时（30秒），请调整位置后重新验证。')
   }, budgetMs)
   const sample = async () => {
     if (round !== autoRound || controller.signal.aborted) return
@@ -90,10 +90,10 @@ function startAutoLogin() {
       const image = await readFrame(source, true)
       controller.signal.throwIfAborted()
       const remaining = deadline - performance.now()
-      if (remaining <= 0) return fail('本次验证已超时（5秒），请调整位置后重新验证。')
+      if (remaining <= 0) return fail('本次验证已超时（30秒），请调整位置后重新验证。')
       autoPhase.value = 'verifying'
       if (!props.verify) throw new Error('verification unavailable')
-      await props.verify(image, { signal: controller.signal, timeout: Math.max(1, Math.min(3000, remaining)) })
+      await props.verify(image, { signal: controller.signal, timeout: Math.max(1, remaining) })
       if (round !== autoRound || controller.signal.aborted) return
       autoPhase.value = 'done'
       stopCamera()
@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
         <path class="face-capture__ear-detail" d="M32 100C38 94 39 110 37 123M168 100C162 94 161 110 163 123" />
       </svg>
       <div v-else-if="!ready && active" class="face-capture__guide" aria-hidden="true" />
-      <span v-if="mode === 'login' && !error" class="face-capture__auto-status" role="status">{{ opening ? '正在开启摄像头…' : autoStatus }}<small v-if="active">自动验证 · 最长 5 秒</small></span>
+      <span v-if="mode === 'login' && !error" class="face-capture__auto-status" role="status">{{ opening ? '正在开启摄像头…' : autoStatus }}<small v-if="active">自动验证 · 最长 30 秒</small></span>
       <div v-if="mode === 'login' && error" class="face-capture__error face-capture__login-error" role="alert">
         <span>{{ error }}</span>
         <button class="face-capture__retry" type="button" :disabled="opening" @click="startCamera">重新验证</button>

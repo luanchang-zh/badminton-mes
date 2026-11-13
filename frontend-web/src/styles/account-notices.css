@@ -1,0 +1,18 @@
+:root {
+  --mes-notice-width: min(720px, calc(100vw - 280px));
+}
+
+.mes-account-notice {
+  box-sizing: border-box;
+  width: var(--mes-notice-width);
+  padding: 14px 44px 14px 20px;
+  border: 1px solid #e1e7ee;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px #172e4610;
+  color: #233246;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .el-message.mes-welcome-notice { transition: none; }
+}

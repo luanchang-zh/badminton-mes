@@ -1,0 +1,126 @@
+/* Production styles adapted from the approved v7 dialog. */
+
+.enroll-overlay { background: rgb(15 26 40 / 48%); }
+.enroll-dialog {
+  --el-color-primary: #2866b7;
+  --el-color-primary-light-3: #6994cd;
+  --el-color-primary-light-5: #94b3db;
+  --el-color-primary-light-7: #bfd2e9;
+  --el-color-primary-light-9: #eaf0f8;
+  --el-color-primary-dark-2: #205292;
+  --el-border-radius-base: 6px;
+  max-width: calc(100vw - 80px);
+  margin: 28px auto;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgb(8 23 43 / 20%);
+  color: #233246;
+}
+.enroll-dialog .el-dialog__header { padding: 27px 32px 22px; margin: 0; }
+.enroll-dialog .el-dialog__headerbtn { top: 19px; right: 18px; width: 36px; height: 36px; font-size: 19px; }
+.enroll-dialog .el-dialog__body { padding: 0; color: #233246; }
+:where(.enroll-dialog) .dialog-heading { margin: 0; font-size: 19px; font-weight: 600; line-height: 28px; letter-spacing: .2px; }
+:where(.enroll-dialog) .intro-view { padding: 12px 48px 0; text-align: center; }
+:where(.enroll-dialog) .intro-mark { display: grid; place-items: center; margin: 0 auto 22px; color: #2866b7; }
+:where(.enroll-dialog) .intro-mark > svg { width: 46px; height: 46px; }
+:where(.enroll-dialog) .intro-view h3 { margin: 0 0 12px; color: #233246; font-size: 25px; line-height: 36px; font-weight: 600; letter-spacing: -.5px; }
+:where(.enroll-dialog) .intro-description { margin: 0; color: #6e7b8a; font-size: 14px; line-height: 24px; }
+:where(.enroll-dialog) .intro-poses { display: flex; justify-content: center; gap: 18px; margin: 28px 0 20px; }
+:where(.enroll-dialog) .intro-poses figure { width: 116px; margin: 0; }
+:where(.enroll-dialog) .pose-photo { position: relative; overflow: hidden; background: #f1f4f7; }
+:where(.enroll-dialog) .pose-photo img { position: absolute; top: 0; width: 300%; max-width: none; height: auto; display: block; mix-blend-mode: multiply; }
+:where(.enroll-dialog) .intro-poses .pose-photo { height: 112px; border-radius: 9px; }
+:where(.enroll-dialog) .intro-poses figcaption { padding-top: 10px; font-size: 13px; color: #697789; }
+:where(.enroll-dialog) .preparation-note { margin: 0 0 22px; font-size: 13px; color: #6e7b8a; line-height: 22px; }
+:where(.enroll-dialog) .intro-consent { padding-top: 17px; border-top: 1px solid #e9edf2; }
+:where(.enroll-dialog) .intro-consent .el-checkbox__label { color: #5c6c80; font-size: 13px; }
+:where(.enroll-dialog) .primary-action { height: 44px; min-width: 218px; padding: 0 24px; font-size: 14px; font-weight: 500; }
+:where(.enroll-dialog) .start-action { width: 100%; margin-top: 15px; }
+:where(.enroll-dialog) .button-next { margin-left: 12px; }
+:where(.enroll-dialog) .quiet-action { display: block; margin: 15px auto 0; padding: 4px 12px; border: 0; color: #6d7c8e; background: none; font-size: 13px; cursor: pointer; }
+:where(.enroll-dialog) .capture-view { padding: 0 32px; text-align: center; }
+:where(.enroll-dialog) .pose-progress { display: flex; gap: 12px; padding: 0; margin: 0 0 24px; list-style: none; text-align: left; }
+:where(.enroll-dialog) .pose-progress li { flex: 1; }
+:where(.enroll-dialog) .pose-progress-label { display: flex; align-items: center; gap: 6px; color: #67778b; font-size: 13px; line-height: 20px; }
+:where(.enroll-dialog) .pose-progress-track { display: block; margin-top: 8px; height: 3px; border-radius: 2px; background: #e6ebf1; }
+:where(.enroll-dialog) .pose-progress .is-active .pose-progress-label { color: #2866b7; font-weight: 600; }
+:where(.enroll-dialog) .pose-progress .is-active .pose-progress-track { background: #2866b7; }
+:where(.enroll-dialog) .pose-progress .is-finished .pose-progress-label { color: #357e68; }
+:where(.enroll-dialog) .pose-progress .is-finished .pose-progress-track { background: #b5cfc4; }
+:where(.enroll-dialog) .capture-stage { height: 316px; position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 10px; background: #f2f5f8; }
+:where(.enroll-dialog) .camera-oval { position: relative; width: 224px; height: 274px; overflow: hidden; border-radius: 49%; background: #eef1f4; }
+:where(.enroll-dialog) .alignment-guide { position: absolute; width: 238px; height: 288px; border: 1.5px solid #8caaca; border-radius: 49%; pointer-events: none; }
+:where(.enroll-dialog) .capture-direction { padding: 23px 0 0; }
+:where(.enroll-dialog) .capture-direction h3 { margin: 0; font-size: 24px; line-height: 34px; font-weight: 600; letter-spacing: -.3px; }
+:where(.enroll-dialog) .capture-direction p { margin: 8px 0 0; color: #65758b; font-size: 14px; line-height: 24px; }
+:where(.enroll-dialog) .pose-example-link { display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; margin-top: 7px; color: #536e8e; background: transparent; border: 0; font-size: 12px; cursor: pointer; }
+:where(.enroll-dialog) .capture-controls { position: relative; display: flex; justify-content: center; gap: 12px; margin-top: 22px; }
+:where(.enroll-dialog) .capture-controls .el-button { margin: 0; }
+:where(.enroll-dialog) .previous-action { height: 44px; border-color: transparent; color: #687b91; background: transparent; font-size: 13px; }
+:where(.enroll-dialog) .previous-action:hover { background: #f5f7fa; }
+:where(.enroll-dialog) .camera-help { display: grid; justify-items: center; gap: 14px; color: #758397; }
+:where(.enroll-dialog) .camera-help strong { color: #33465e; font-size: 16px; font-weight: 500; }
+:where(.enroll-dialog) .camera-help p { margin: 0 0 5px; font-size: 13px; line-height: 23px; }
+.pose-example-popover .example-popover-content { padding: 4px; text-align: center; }
+.pose-example-popover .example-popover-content .pose-photo { width: 130px; height: 130px; margin: 0 auto 10px; border-radius: 6px; }
+.pose-example-popover .example-popover-content > span { font-size: 12px; color: #627389; }
+:where(.enroll-dialog) .review-view { padding: 12px 32px 8px; }
+:where(.enroll-dialog) .review-heading { text-align: center; }
+:where(.enroll-dialog) .review-check { display: inline-grid; place-items: center; color: #357e68; margin-bottom: 16px; }
+:where(.enroll-dialog) .review-heading h3 { margin: 0 0 10px; font-size: 24px; font-weight: 600; line-height: 34px; }
+:where(.enroll-dialog) .review-heading p { margin: 0; font-size: 13px; line-height: 22px; color: #718095; }
+:where(.enroll-dialog) .review-photos { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin: 32px 0; }
+:where(.enroll-dialog) .review-photos figure { margin: 0; }
+:where(.enroll-dialog) .review-photos figcaption { display: flex; justify-content: space-between; align-items: center; padding-top: 13px; font-size: 13px; color: #52647c; }
+:where(.enroll-dialog) .review-photos figcaption button { display: flex; align-items: center; gap: 4px; padding: 3px 0; color: #6d819a; border: 0; background: none; font-size: 12px; cursor: pointer; }
+:where(.enroll-dialog) .review-confirm { display: flex; width: 100%; }
+:where(.enroll-dialog) .success-view { display: grid; justify-items: center; padding: 32px 32px 22px; text-align: center; }
+:where(.enroll-dialog) .success-mark { display: grid; place-items: center; width: 80px; height: 80px; border-radius: 50%; color: #2e7a5f; background: #edf6f0; margin-bottom: 25px; }
+:where(.enroll-dialog) .success-view h3 { margin: 0 0 12px; font-size: 25px; font-weight: 600; line-height: 36px; }
+:where(.enroll-dialog) .success-view p { margin: 0 0 32px; color: #6e7b8a; font-size: 14px; line-height: 24px; }
+:where(.enroll-dialog) .enroll-result-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+:where(.enroll-dialog) .enroll-result-actions .el-button { margin: 0; }
+:where(.enroll-dialog) .privacy-note { display: flex; align-items: center; justify-content: center; gap: 6px; color: #65758a; font-size: 12px; line-height: 18px; padding: 24px 24px 23px; }
+:where(.enroll-dialog) .quiet-action:hover, :where(.enroll-dialog) .pose-example-link:hover { color: #2866b7; }
+:where(.enroll-dialog) button:focus-visible, :where(.enroll-dialog) a:focus-visible { outline: 2px solid #2866b7; outline-offset: 4px; }
+@media (min-width: 1100px) and (max-height: 820px) {
+  .enroll-dialog .el-dialog__header { padding-top: 21px; padding-bottom: 18px; }
+  .enroll-dialog .el-dialog__headerbtn { top: 13px; }
+  :where(.enroll-dialog) .pose-progress { margin-bottom: 18px; }
+  :where(.enroll-dialog) .capture-stage { height: 266px; }
+  :where(.enroll-dialog) .camera-oval { width: 190px; height: 232px; }
+  :where(.enroll-dialog) .alignment-guide { width: 204px; height: 246px; }
+  :where(.enroll-dialog) .capture-direction { padding-top: 18px; }
+  :where(.enroll-dialog) .capture-controls { margin-top: 15px; }
+  :where(.enroll-dialog) .privacy-note { padding-top: 19px; padding-bottom: 19px; }
+  :where(.enroll-dialog) .intro-mark { margin-bottom: 16px; }
+  :where(.enroll-dialog) .intro-poses { margin-top: 22px; margin-bottom: 16px; }
+  :where(.enroll-dialog) .preparation-note { margin-bottom: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .enroll-overlay, .enroll-overlay *, .pose-example-popover, .pose-example-popover * { animation: none; transition: none; }
+  .enroll-overlay .el-overlay-dialog { animation: none; transition: none; }
+}
+
+.enroll-dialog { max-height: calc(100svh - 48px); overflow-y: auto; }
+.enroll-dialog .el-dialog__header { position: relative; }
+.enroll-dialog .el-dialog__headerbtn { position: absolute; }
+.enroll-dialog .camera-oval video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.enroll-dialog .pose-photo, .pose-example-popover .pose-photo { transform: scaleX(-1); }
+.enroll-dialog .camera-help { max-width: 90%; }
+.enroll-dialog .camera-help p { max-width: 380px; }
+.enroll-dialog .captured-photo { position: relative; overflow: hidden; background: #f1f4f7; aspect-ratio: 1; border-radius: 8px; }
+.enroll-dialog .captured-photo img { display: block; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+.enroll-dialog .enroll-error { margin: 0 0 18px; padding: 12px 14px; border-radius: 6px; background: #fef0ee; color: #a3382d; font-size: 13px; line-height: 1.8; text-align: left; }
+.enroll-dialog .enroll-message { display: grid; justify-items: center; padding: 32px; min-height: 230px; text-align: center; }
+.enroll-dialog .enroll-message > svg { width: 44px; height: 44px; color: #2866b7; }
+.enroll-dialog .enroll-message h3 { font-size: 20px; font-weight: 500; }
+.enroll-dialog .enroll-message p { font-size: 14px; line-height: 1.8; color: #65758a; }
+.enroll-dialog .enroll-sample-count { margin: -16px 0 24px; color: #65758a; font-size: 13px; }
+.enroll-dialog .enroll-partial { padding: 12px; margin: 0 0 20px; color: #8a542c; font-size: 12px; background: #fdf6ec; border-radius: 6px; }
+.enroll-dialog .enroll-cancel { margin-top: 14px; }
+.enroll-dialog .enroll-disable { margin-top: 18px; font-size: 12px; }
+.enroll-dialog button:disabled { cursor: not-allowed; }
+.pose-example-popover .pose-photo { position: relative; overflow: hidden; background: #f1f4f7; }
+.pose-example-popover .pose-photo img { position: absolute; top: 0; width: 300%; height: auto; max-width: none; display: block; mix-blend-mode: multiply; }

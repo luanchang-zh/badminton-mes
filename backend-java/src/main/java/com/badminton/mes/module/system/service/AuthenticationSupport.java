@@ -125,7 +125,7 @@ public class AuthenticationSupport {
     }
 
     /**
-     * 查询用户当前有效且启用的角色编码。人脸登录需要在发会话前拒绝 ADMIN。
+     * 查询用户当前有效且启用的角色编码。
      *
      * @param userId 用户主键
      * @return 角色编码，按角色 id 升序

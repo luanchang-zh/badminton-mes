@@ -1,6 +1,7 @@
 package com.badminton.mes.module.rag.client;
 
 import java.util.List;
+import com.badminton.mes.module.rag.client.dto.RagReference;
 
 /**
  * 上游流式问答输出的一行 NDJSON 解析结果。
@@ -19,11 +20,17 @@ import java.util.List;
  * @author 张竹灏
  * @date 2026/11/08
  */
-public record RagStreamLine(Kind kind, String content, List<String> references, String error) {
+public record RagStreamLine(Kind kind, String content, List<String> references, String error,
+                            List<RagReference> referenceDetails) {
+
+    public RagStreamLine(Kind kind, String content, List<String> references, String error) {
+        this(kind, content, references, error, List.of());
+    }
 
     /** 紧凑构造器：列表字段归一化，避免调用方判空 */
     public RagStreamLine {
         references = references == null ? List.of() : List.copyOf(references);
+        referenceDetails = referenceDetails == null ? List.of() : List.copyOf(referenceDetails);
     }
 
     /**

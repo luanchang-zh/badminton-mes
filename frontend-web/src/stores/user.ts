@@ -4,6 +4,7 @@ import * as authApi from '@/api/auth'
 import * as faceApi from '@/api/face'
 import type { ChangePasswordParams, LoginParams } from '@/api/auth'
 import { MOCK_TOKEN, TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from '@/utils/request'
+import { cancelActiveRagTasks } from '@/utils/rag-cancellation'
 
 /** 超级管理员角色码：拥有全部权限 */
 export const ADMIN_ROLE = 'ADMIN'
@@ -102,6 +103,7 @@ export const useUserStore = defineStore('user', () => {
 
   /** 服务端删会话失败也照常清本地（登出必须总能完成） */
   async function logout() {
+    await cancelActiveRagTasks()
     if (token.value === MOCK_TOKEN) {
       clear()
       return
@@ -118,6 +120,7 @@ export const useUserStore = defineStore('user', () => {
 
   /** 改密成功后后端使当前会话失效，调用方应引导重新登录 */
   async function changePassword(params: ChangePasswordParams) {
+    await cancelActiveRagTasks()
     // 改密后服务端会使旧 token 失效，因此清理本地会话，避免继续携带旧凭证请求。
     await authApi.changePassword(params)
     clear()

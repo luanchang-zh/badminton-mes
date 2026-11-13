@@ -478,6 +478,249 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "6. RAG 聊天会话（支持离线上游验证）",
+			"description": "需 MES 登录态及知识库绑定。LightRAG 未部署时状态和会话管理可使用，生成请求返回连接错误；失败消息可从历史读取后重试。",
+			"item": [
+				{
+					"name": "6.1 本人知识库开通状态",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/profile",
+						"description": ""
+					}
+				},
+				{
+					"name": "6.2 新建会话",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/conversations",
+						"description": "",
+						"body": {
+							"mode": "raw",
+							"raw": "{\"title\":\"设备点检\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const r = pm.response.json();",
+									"if (r.code === \"00000\") pm.collectionVariables.set(\"ragConversationId\", r.data.id);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "6.3 本人会话列表",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/conversations?pageNo=1&pageSize=20",
+						"description": ""
+					}
+				},
+				{
+					"name": "6.4 重命名会话",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/conversations/{{ragConversationId}}",
+						"description": "",
+						"body": {
+							"mode": "raw",
+							"raw": "{\"title\":\"装配线设备点检\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					}
+				},
+				{
+					"name": "6.5 持久同步问答",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/query",
+						"description": "",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"conversationId\": {{ragConversationId}},\n  \"requestId\": \"{{$guid}}\",\n  \"question\": \"装配线开机前需要检查哪些项目？\",\n  \"mode\": \"naive\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const r = pm.response.json();",
+									"if (r.code === \"00000\") pm.collectionVariables.set(\"ragAssistantMessageId\", r.data.assistantMessageId);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "6.6 持久 SSE 问答",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/query/stream",
+						"description": "使用 meta 获取消息 ID；delta 为文本，reference_details/done 为 JSON。",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"conversationId\": {{ragConversationId}},\n  \"requestId\": \"{{$guid}}\",\n  \"question\": \"装配线开机前需要检查哪些项目？\",\n  \"mode\": \"naive\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					}
+				},
+				{
+					"name": "6.7 恢复消息历史",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/conversations/{{ragConversationId}}/messages?pageNo=1&pageSize=50",
+						"description": "失败生成的消息同样可读取；将需要操作的 assistant ID 填入 ragAssistantMessageId。"
+					}
+				},
+				{
+					"name": "6.8 停止生成",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/messages/{{ragAssistantMessageId}}/cancel",
+						"description": "校验归属后关闭上游；已结束消息保持终态。"
+					}
+				},
+				{
+					"name": "6.9 重试失败或停止的回答",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/messages/{{ragAssistantMessageId}}/retry",
+						"description": "返回 SSE；原失败记录保留。",
+						"body": {
+							"mode": "raw",
+							"raw": "{\"requestId\":\"{{$guid}}\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					}
+				},
+				{
+					"name": "6.10 删除会话",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": "{{baseUrl}}/api/rag/conversations/{{ragConversationId}}",
+						"description": "先取消活跃生成，再删除会话及消息。"
+					}
+				}
+			]
 		}
 	],
 	"variable": [
@@ -496,6 +739,16 @@
 		{
 			"key": "ragDocId",
 			"value": ""
+		},
+		{
+			"key": "ragConversationId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "ragAssistantMessageId",
+			"value": "",
+			"type": "string"
 		}
 	]
 }

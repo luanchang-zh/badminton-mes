@@ -90,6 +90,13 @@ services:
       # 不走宿主机 18097，宿主机端口只绑定 127.0.0.1 供本机 curl 调试
       MES_INSIGHTFACE_BASE_URL: http://insightface:8080
       MES_INSIGHTFACE_API_KEY: ${MES_INSIGHTFACE_API_KEY:-}
+      # LightRAG 独立部署后设置实际可达地址；当前缺省保持应用原默认值。
+      MES_RAG_BASE_URL: ${MES_RAG_BASE_URL:-http://127.0.0.1:9621}
+      MES_RAG_INTERNAL_API_KEY: ${MES_RAG_INTERNAL_API_KEY:-}
+      MES_RAG_CONNECT_TIMEOUT: ${MES_RAG_CONNECT_TIMEOUT:-3s}
+      MES_RAG_READ_TIMEOUT: ${MES_RAG_READ_TIMEOUT:-60s}
+      MES_RAG_STREAM_READ_TIMEOUT: ${MES_RAG_STREAM_READ_TIMEOUT:-120s}
+      MES_RAG_SSE_TIMEOUT: ${MES_RAG_SSE_TIMEOUT:-180s}
     networks: [default, mes-face]
     ports:
       - "8080:8080"

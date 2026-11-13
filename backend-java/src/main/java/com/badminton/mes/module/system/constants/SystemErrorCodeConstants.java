@@ -97,10 +97,6 @@ public final class SystemErrorCodeConstants {
     public static final ErrorCode FACE_LOGIN_REJECTED =
             new ErrorCode("A0200", "人脸识别未通过", "人脸识别未通过，请重试或改用密码登录");
 
-    /** 管理员账号禁止人脸登录(无活体检测的补偿措施) */
-    public static final ErrorCode FACE_LOGIN_ADMIN_FORBIDDEN =
-            new ErrorCode("A0220", "管理员账号禁止人脸登录", "管理员账号请使用密码登录");
-
     /** 同一来源 IP 人脸登录失败次数超限 */
     public static final ErrorCode FACE_LOGIN_TOO_FREQUENT =
             new ErrorCode("A0501", "人脸登录失败次数超限", "尝试过于频繁，请 15 分钟后再试");
@@ -111,11 +107,7 @@ public final class SystemErrorCodeConstants {
 
     /** 已存在有效人脸绑定，不能重复注册 */
     public static final ErrorCode FACE_ALREADY_ENROLLED =
-            new ErrorCode("A0111", "已注册人脸登录", "已经注册，请追加照片或先关闭人脸登录");
-
-    /** 管理员账号禁止注册人脸，HTTP 映射 403 */
-    public static final ErrorCode FACE_ENROLL_ADMIN_FORBIDDEN =
-            new ErrorCode("A0301", "管理员账号禁止注册人脸", "管理员账号不能注册人脸登录");
+            new ErrorCode("A0111", "已注册人脸登录", "已经注册，请重新采集或追加照片");
 
     /** 未注册人脸时执行追加、删除样本等操作 */
     public static final ErrorCode FACE_NOT_ENROLLED =

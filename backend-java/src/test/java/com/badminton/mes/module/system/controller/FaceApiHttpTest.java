@@ -98,7 +98,7 @@ class FaceApiHttpTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"POST,/enroll", "GET,/profile", "POST,/samples",
+    @CsvSource({"POST,/enroll", "POST,/reenroll", "GET,/profile", "POST,/samples",
             "DELETE,/samples/face-1", "DELETE,/enrollment"})
     void managementRequiresLogin(String method, String path) throws Exception {
         assertResponse(send(method, BASE + path, false, multipart("images", List.of(JPEG), "true")), 401, "A0230");
@@ -153,6 +153,32 @@ class FaceApiHttpTest {
     }
 
     @Test
+    void reenrollmentForwardsConsentAndFilesForCurrentUser() throws Exception {
+        user.setRoleCodes(List.of("ADMIN", "OPERATOR"));
+        FaceEnrollRespVO result = new FaceEnrollRespVO();
+        result.setAcceptedCount(2);
+        result.setFaceCount(2);
+        result.setRejectedImages(List.of());
+        when(faceService.reenroll(eq(user), any(), eq(true))).thenReturn(result);
+
+        JsonNode data = assertResponse(send("POST", BASE + "/reenroll?userId=999&personId=user-999", true,
+                multipart("images", List.of(JPEG, JPEG), "true")), 200, "00000").path("data");
+
+        assertThat(data.path("acceptedCount").asInt()).isEqualTo(2);
+        assertThat(data.path("faceCount").asInt()).isEqualTo(2);
+        verify(faceService).reenroll(eq(user), argThat(files -> files.size() == 2), eq(true));
+    }
+
+    @Test
+    void reenrollmentFailureReturnsRetryableError() throws Exception {
+        when(faceService.reenroll(eq(user), any(), eq(true)))
+                .thenThrow(new ServiceException(SystemErrorCodeConstants.FACE_OPERATION_IN_PROGRESS));
+
+        assertResponse(send("POST", BASE + "/reenroll", true,
+                multipart("images", List.of(JPEG, JPEG), "true")), 400, "A0503");
+    }
+
+    @Test
     void profileOnlyUsesCurrentUser() throws Exception {
         FaceProfileRespVO profile = new FaceProfileRespVO();
         profile.setEnrolled(false);
@@ -188,15 +214,16 @@ class FaceApiHttpTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {LOGIN, BASE + "/enroll", BASE + "/samples"})
+    @ValueSource(strings = {LOGIN, BASE + "/enroll", BASE + "/reenroll", BASE + "/samples"})
     void missingFileIsParameterError(String path) throws Exception {
         assertResponse(send("POST", path, true, multipart("wrong_field", List.of(JPEG), "true")), 400, "A0400");
         verifyNoInteractions(faceService, authService);
     }
 
-    @Test
-    void invalidConsentIsParameterError() throws Exception {
-        assertResponse(send("POST", BASE + "/enroll", true,
+    @ParameterizedTest
+    @ValueSource(strings = {BASE + "/enroll", BASE + "/reenroll"})
+    void invalidConsentIsParameterError(String path) throws Exception {
+        assertResponse(send("POST", path, true,
                 multipart("images", List.of(JPEG, JPEG), "invalid")), 400, "A0400");
         verifyNoInteractions(faceService);
     }
@@ -208,7 +235,7 @@ class FaceApiHttpTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {LOGIN, BASE + "/enroll", BASE + "/samples"})
+    @ValueSource(strings = {LOGIN, BASE + "/enroll", BASE + "/reenroll", BASE + "/samples"})
     void wrongContentTypeIsParameterError(String path) throws Exception {
         HttpRequest request = request("POST", path, true, "{}".getBytes(StandardCharsets.UTF_8), "application/json");
         assertResponse(HTTP.send(request, HttpResponse.BodyHandlers.ofString()), 400, "A0400");
@@ -223,7 +250,7 @@ class FaceApiHttpTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {LOGIN, BASE + "/enroll", BASE + "/samples"})
+    @ValueSource(strings = {LOGIN, BASE + "/enroll", BASE + "/reenroll", BASE + "/samples"})
     void elevenMegabyteImageReturnsJsonUploadError(String path) throws Exception {
         byte[] oversized = new byte[11 * 1024 * 1024];
         System.arraycopy(JPEG, 0, oversized, 0, JPEG.length);

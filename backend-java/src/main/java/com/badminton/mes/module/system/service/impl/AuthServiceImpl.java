@@ -8,7 +8,6 @@ import java.util.Optional;
 import com.badminton.mes.common.enums.CommonStatusEnum;
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.common.security.LoginUser;
-import com.badminton.mes.common.security.RoleCodeConstants;
 import com.badminton.mes.common.security.SecurityContextHolder;
 import com.badminton.mes.common.util.DesensitizeUtils;
 import com.badminton.mes.module.system.client.FaceImage;
@@ -170,7 +169,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 人脸命中后核对用户：不存在 A0200、停用 A0202、含 ADMIN A0220。放在确认命中之后，
+     * 人脸命中后核对用户：不存在 A0200、停用 A0202。放在确认命中之后，
      * 与密码登录先验证凭据、再提示停用的顺序一致。
      */
     private UserEntity loadFaceLoginUser(Long userId) {
@@ -181,9 +180,6 @@ public class AuthServiceImpl implements AuthService {
         }
         if (!CommonStatusEnum.ENABLED.getStatus().equals(user.getStatus())) {
             throw new ServiceException(SystemErrorCodeConstants.LOGIN_USER_DISABLED);
-        }
-        if (authenticationSupport.loadEnabledRoleCodes(userId).contains(RoleCodeConstants.ADMIN)) {
-            throw new ServiceException(SystemErrorCodeConstants.FACE_LOGIN_ADMIN_FORBIDDEN);
         }
         return user;
     }

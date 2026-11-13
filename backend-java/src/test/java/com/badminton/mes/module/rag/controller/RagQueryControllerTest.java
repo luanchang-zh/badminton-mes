@@ -16,6 +16,7 @@ import com.badminton.mes.common.security.AuthInterceptor;
 import com.badminton.mes.module.rag.client.dto.RagQueryResult;
 import com.badminton.mes.module.rag.enums.RagQueryMode;
 import com.badminton.mes.module.rag.service.RagQueryService;
+import com.badminton.mes.module.rag.service.RagChatService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +42,9 @@ class RagQueryControllerTest {
 
     @MockitoBean
     private RagQueryService ragQueryService;
+
+    @MockitoBean
+    private RagChatService chatService;
 
     @MockitoBean
     private AuthInterceptor authInterceptor;

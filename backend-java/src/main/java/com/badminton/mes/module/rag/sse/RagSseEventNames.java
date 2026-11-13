@@ -14,6 +14,10 @@ public final class RagSseEventNames {
     /** 参考片段，通常先于正文到达，data 为字符串数组 */
     public static final String REFERENCES = "references";
 
+    public static final String REFERENCE_DETAILS = "reference_details";
+
+    public static final String META = "meta";
+
     /** 正文增量，data 为文本片段 */
     public static final String DELTA = "delta";
 

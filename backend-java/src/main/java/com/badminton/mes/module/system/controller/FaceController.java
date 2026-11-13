@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.badminton.mes.common.core.CommonResult;
 import com.badminton.mes.common.security.SecurityContextHolder;
+import com.badminton.mes.module.system.client.FaceImage;
 import com.badminton.mes.module.system.controller.vo.FaceEnrollRespVO;
 import com.badminton.mes.module.system.controller.vo.FaceProfileRespVO;
 import com.badminton.mes.module.system.service.FaceService;
@@ -58,7 +59,23 @@ public class FaceController {
     public CommonResult<FaceEnrollRespVO> enroll(
             @RequestPart("images") List<MultipartFile> images,
             @RequestParam(value = "consent", required = false) Boolean consent) {
+        FaceImage.validateUploadSizes(images);
         return CommonResult.success(faceService.enroll(SecurityContextHolder.getRequiredLoginUser(), images, consent));
+    }
+
+    /**
+     * 重新采集本人人脸，替换全部旧特征。
+     *
+     * @param images 2～3 张新照片
+     * @param consent 是否再次同意人脸信息处理说明，必须为 true
+     * @return 本次采集结果；全部拒收时旧特征已删除，状态为未注册
+     */
+    @PostMapping(value = "/reenroll", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public CommonResult<FaceEnrollRespVO> reenroll(
+            @RequestPart("images") List<MultipartFile> images,
+            @RequestParam(value = "consent", required = false) Boolean consent) {
+        FaceImage.validateUploadSizes(images);
+        return CommonResult.success(faceService.reenroll(SecurityContextHolder.getRequiredLoginUser(), images, consent));
     }
 
     /**
@@ -79,6 +96,7 @@ public class FaceController {
      */
     @PostMapping(value = "/samples", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CommonResult<FaceEnrollRespVO> addSamples(@RequestPart("images") List<MultipartFile> images) {
+        FaceImage.validateUploadSizes(images);
         return CommonResult.success(faceService.addSamples(SecurityContextHolder.getRequiredLoginUser(), images));
     }
 
