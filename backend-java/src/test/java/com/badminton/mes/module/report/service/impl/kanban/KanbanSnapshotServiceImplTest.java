@@ -54,7 +54,8 @@ class KanbanSnapshotServiceImplTest {
 
         assertThat(result).containsEntry("dataStatus", "FRESH");
         assertThat(result.get("version").toString()).isEqualTo("1");
-        verify(realtimeService, never()).overview(org.mockito.ArgumentMatchers.any());
+        // 看板快照走 overviewForKanban：它不依赖登录上下文，不能被换成 overview
+        verify(realtimeService, never()).overviewForKanban(org.mockito.ArgumentMatchers.any());
         assertThat(service.knownScopes()).containsExactly(new Scope("line", 8L));
     }
 
@@ -62,7 +63,7 @@ class KanbanSnapshotServiceImplTest {
     void corruptCachedSnapshotFallsBackAndRefreshesRequestedLine() {
         String key = KanbanRedisKeyConstants.snapshotKey("line", 8L);
         when(values.get(key)).thenReturn("{broken-json");
-        when(realtimeService.overview(org.mockito.ArgumentMatchers.any()))
+        when(realtimeService.overviewForKanban(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new RealtimeProductionRespVO.Overview());
 
         Map<String, Object> result = service.get("line", 8L);
@@ -70,7 +71,7 @@ class KanbanSnapshotServiceImplTest {
         ArgumentCaptor<com.badminton.mes.module.report.controller.vo.RealtimeReportQueryReqVO> captor =
                 ArgumentCaptor.forClass(
                         com.badminton.mes.module.report.controller.vo.RealtimeReportQueryReqVO.class);
-        verify(realtimeService).overview(captor.capture());
+        verify(realtimeService).overviewForKanban(captor.capture());
         assertThat(captor.getValue().getLineId()).isEqualTo(8L);
         assertThat(captor.getValue().getWorkshopId()).isNull();
         assertThat(result).containsEntry("dataStatus", "FRESH");
@@ -79,7 +80,7 @@ class KanbanSnapshotServiceImplTest {
 
     @Test
     void redisWriteFailureReturnsPartialSnapshotInsteadOfFailingDashboard() {
-        when(realtimeService.overview(org.mockito.ArgumentMatchers.any()))
+        when(realtimeService.overviewForKanban(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new RealtimeProductionRespVO.Overview());
         doThrow(new IllegalStateException("redis unavailable")).when(values)
                 .set(anyString(), anyString(), eq(KanbanRedisKeyConstants.SNAPSHOT_TTL));

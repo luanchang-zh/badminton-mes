@@ -1,8 +1,8 @@
 {
 	"info": {
 		"_postman_id": "12345678-1234-1234-1234-123456789abc",
-		"name": "羽毛球MES - 设备类别模块",
-		"description": "设备类别模块完整测试集合，包含正常流程和异常场景",
+		"name": "羽毛球MES - 接口测试集合",
+		"description": "设备类别模块与 RAG 知识库模块的完整测试集合，包含正常流程和异常场景",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -17,12 +17,25 @@
 						"url": {
 							"raw": "http://localhost:8080/api/equipment/categories/page?pageNo=1&pageSize=20",
 							"protocol": "http",
-							"host": ["localhost"],
+							"host": [
+								"localhost"
+							],
 							"port": "8080",
-							"path": ["api", "equipment", "categories", "page"],
+							"path": [
+								"api",
+								"equipment",
+								"categories",
+								"page"
+							],
 							"query": [
-								{"key": "pageNo", "value": "1"},
-								{"key": "pageSize", "value": "20"}
+								{
+									"key": "pageNo",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "20"
+								}
 							]
 						},
 						"description": "查询所有设备类别，验证测试数据已插入成功。应该返回12条记录"
@@ -37,13 +50,29 @@
 						"url": {
 							"raw": "http://localhost:8080/api/equipment/categories/page?pageNo=1&pageSize=10&keyword=生产",
 							"protocol": "http",
-							"host": ["localhost"],
+							"host": [
+								"localhost"
+							],
 							"port": "8080",
-							"path": ["api", "equipment", "categories", "page"],
+							"path": [
+								"api",
+								"equipment",
+								"categories",
+								"page"
+							],
 							"query": [
-								{"key": "pageNo", "value": "1"},
-								{"key": "pageSize", "value": "10"},
-								{"key": "keyword", "value": "生产"}
+								{
+									"key": "pageNo",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "10"
+								},
+								{
+									"key": "keyword",
+									"value": "生产"
+								}
 							]
 						}
 					},
@@ -57,9 +86,16 @@
 						"url": {
 							"raw": "http://localhost:8080/api/equipment/categories/1",
 							"protocol": "http",
-							"host": ["localhost"],
+							"host": [
+								"localhost"
+							],
 							"port": "8080",
-							"path": ["api", "equipment", "categories", "1"]
+							"path": [
+								"api",
+								"equipment",
+								"categories",
+								"1"
+							]
 						}
 					},
 					"response": []
@@ -74,7 +110,10 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{"key": "Content-Type", "value": "application/json"}
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
 						],
 						"body": {
 							"mode": "raw",
@@ -83,9 +122,15 @@
 						"url": {
 							"raw": "http://localhost:8080/api/equipment/categories",
 							"protocol": "http",
-							"host": ["localhost"],
+							"host": [
+								"localhost"
+							],
 							"port": "8080",
-							"path": ["api", "equipment", "categories"]
+							"path": [
+								"api",
+								"equipment",
+								"categories"
+							]
 						}
 					},
 					"response": []
@@ -95,7 +140,10 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{"key": "Content-Type", "value": "application/json"}
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
 						],
 						"body": {
 							"mode": "raw",
@@ -104,9 +152,15 @@
 						"url": {
 							"raw": "http://localhost:8080/api/equipment/categories",
 							"protocol": "http",
-							"host": ["localhost"],
+							"host": [
+								"localhost"
+							],
 							"port": "8080",
-							"path": ["api", "equipment", "categories"]
+							"path": [
+								"api",
+								"equipment",
+								"categories"
+							]
 						}
 					},
 					"response": []
@@ -121,7 +175,10 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{"key": "Content-Type", "value": "application/json"}
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
 						],
 						"body": {
 							"mode": "raw",
@@ -130,9 +187,16 @@
 						"url": {
 							"raw": "http://localhost:8080/api/equipment/categories/1",
 							"protocol": "http",
-							"host": ["localhost"],
+							"host": [
+								"localhost"
+							],
 							"port": "8080",
-							"path": ["api", "equipment", "categories", "1"]
+							"path": [
+								"api",
+								"equipment",
+								"categories",
+								"1"
+							]
 						}
 					},
 					"response": []
@@ -150,14 +214,288 @@
 						"url": {
 							"raw": "http://localhost:8080/api/equipment/categories/1",
 							"protocol": "http",
-							"host": ["localhost"],
+							"host": [
+								"localhost"
+							],
 							"port": "8080",
-							"path": ["api", "equipment", "categories", "1"]
+							"path": [
+								"api",
+								"equipment",
+								"categories",
+								"1"
+							]
 						}
 					},
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "5. RAG 知识库（多租户隔离验证）",
+			"description": "两个账号分别登录后调用同一批接口，各自只能看到自己的数据。\n执行顺序：先跑 5.1 两次（分别用两个账号），再依次跑 5.2 至 5.6。\n所有请求都不带租户参数，租户由后端按登录用户解析。",
+			"item": [
+				{
+					"name": "5.1 登录（两个账号各跑一次，把 token 存入变量）",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userNo\": \"{{accountNo}}\",\n  \"password\": \"{{accountPassword}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/system/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"system",
+								"auth",
+								"login"
+							]
+						},
+						"description": "把返回的 data.token 分别保存到 {{tokenA}} 与 {{tokenB}}"
+					},
+					"response": []
+				},
+				{
+					"name": "5.2 上传文档（A 账号）",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "sop-sample.md",
+									"description": "只支持 txt/md/csv/json/log 等 UTF-8 文本文件"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/rag/documents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"rag",
+								"documents"
+							]
+						},
+						"description": "需要 ADMIN 或 CRAFT_ENGINEER 角色；返回的 docId 存入 {{ragDocId}}"
+					},
+					"response": [],
+					"description": "\n注意：返回的是 track_id（任务追踪号），不是文档主键；文档主键要从列表接口取 id。"
+				},
+				{
+					"name": "5.3 文档列表（A 和 B 各跑一次，结果应不同）",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/rag/documents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"rag",
+								"documents"
+							]
+						},
+						"description": "隔离验证核心：换 {{tokenB}} 再跑一次，B 不应看到 A 上传的文档"
+					},
+					"response": []
+				},
+				{
+					"name": "5.4 同步问答",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"question\": \"点检标准是什么\",\n  \"mode\": \"mix\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/rag/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"rag",
+								"query"
+							]
+						},
+						"description": "mode 取值：naive / local / global / hybrid / mix，省略时为 naive"
+					},
+					"response": []
+				},
+				{
+					"name": "5.5 流式问答（SSE）",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"question\": \"点检标准是什么\",\n  \"mode\": \"mix\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/rag/query/stream",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"rag",
+								"query",
+								"stream"
+							]
+						},
+						"description": "事件类型：references(参考片段) / delta(正文增量) / error / done；Postman 需等待流结束才显示完整输出"
+					},
+					"response": [],
+					"description": "\n事件：references / delta / error / done。注意 EventSource 不支持 POST，前端需用 fetch + ReadableStream。"
+				},
+				{
+					"name": "5.6 图谱标签与子图",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/rag/graph/labels",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"rag",
+								"graph",
+								"labels"
+							]
+						},
+						"description": "拿到标签后调用 GET /api/rag/graph?label=xxx&maxDepth=2，maxDepth 只能是 1~3"
+					},
+					"response": [],
+					"description": "拿到标签后调用 GET /api/rag/graph?label=xxx&maxDepth=2；maxDepth 只能是 1~3，响应含 truncated 表示是否被截断。"
+				},
+				{
+					"name": "5.7 删除文档（A 账号）",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/rag/documents/{{ragDocId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"rag",
+								"documents",
+								"{{ragDocId}}"
+							]
+						},
+						"description": "用 B 的 token 删除 A 的 docId 应返回 A0400 或上游 404，验证跨租户不可见"
+					},
+					"response": []
+				},
+				{
+					"name": "5.8 重新处理失败文档（整租户，非单文档）",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{tokenA}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/rag/documents/reprocess-failed",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"rag",
+								"documents",
+								"reprocess-failed"
+							]
+						},
+						"description": "上游该接口不接受文档级过滤，会把整个租户的失败文档全部重跑；只重建单个文档请先删除再上传"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "tokenA",
+			"value": ""
+		},
+		{
+			"key": "tokenB",
+			"value": ""
+		},
+		{
+			"key": "ragDocId",
+			"value": ""
 		}
 	]
 }

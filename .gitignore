@@ -328,3 +328,47 @@ scripts/*
 
 .codex_tmp/
 *.docx
+
+# ==============================================================================
+# LightRAG 多租户服务（vendored 源码 + 本地运行数据）
+# ==============================================================================
+
+# vendored 源码只提交源码与依赖声明，忽略构建缓存与可编辑安装元数据。
+/lightrag-service/LightRAG/**/__pycache__/
+/lightrag-service/LightRAG/**/*.pyc
+/lightrag-service/LightRAG/*.egg-info/
+/lightrag-service/LightRAG/build/
+
+# 二开代码与单测缓存。
+/lightrag-service/**/__pycache__/
+/lightrag-service/**/*.pyc
+/lightrag-service/.venv/
+/lightrag-service/.pytest_cache/
+
+# 运行期数据目录：租户上传文件与向量存储，不进版本库。
+/lightrag-service/data/
+
+# >>> Comet managed project state >>>
+!/.comet/
+/.comet/*
+!/.comet/config.yaml
+.comet-archive-staging/
+.*.comet-archive-cas-*
+.*.comet-runtime-migration.json*
+.*.comet-runtime-source-*
+.*.comet-runtime-stage-*
+**/comet/changes/*/runtime
+**/comet/archive/*/runtime
+**/.comet/run-state.json
+**/.comet/pending-action.json
+**/.comet/trajectory.jsonl
+**/.comet/context.md
+**/.comet/artifacts.json
+**/.comet/checkpoint.json
+**/.comet/skill-snapshots
+**/.comet/checks
+**/.comet/coordination.json
+**/.comet/subagent-progress.md
+.comet-state.lock
+.comet-state-transaction.json
+# <<< Comet managed project state <<<

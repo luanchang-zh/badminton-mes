@@ -1,0 +1,74 @@
+# ----------------------------------------------------------------------------
+# LightRAG 依赖组件编排：PostgreSQL + pgvector、Neo4j + APOC
+#
+# 只包含 RAG 服务依赖的外部组件，不含 LightRAG 应用容器（P2 负责）。
+# 与仓库根目录的 docker-compose.yml（MySQL / Redis / MES 前后端）互不影响。
+#
+# 启动：docker compose -f lightrag-service/docker-compose.yml up -d
+# 静态校验：docker compose -f lightrag-service/docker-compose.yml config
+#
+# 刻意不设置 POSTGRES_WORKSPACE / NEO4J_WORKSPACE / WORKSPACE：这几个变量会覆盖
+# 实例级 workspace，一旦注入容器，所有租户会被强制写进同一个命名空间。
+# ----------------------------------------------------------------------------
+
+services:
+
+  postgres:
+    # 带 pgvector 扩展的镜像：KV、向量与文档状态三类存储共用这一个实例。
+    image: ${LR_PG_IMAGE:-docker.m.daocloud.io/pgvector/pgvector:pg16}
+    container_name: lightrag-postgres
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_DB: ${LR_PG_DATABASE:-lightrag}
+      # 首次初始化时创建的同名账号是超级用户，LightRAG 才能自行创建 vector 扩展。
+      POSTGRES_USER: ${LR_PG_USER:-lightrag}
+      POSTGRES_PASSWORD: ${LR_PG_PASSWORD:-change-me}
+    volumes:
+      - lightrag-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # 仅绑定回环地址：只允许宿主机上的 LightRAG 访问，不暴露到局域网。
+    ports:
+      - "127.0.0.1:15432:5432"
+    restart: unless-stopped
+
+  neo4j:
+    # 社区版即可满足课设需求；APOC 用于图谱子图查询（apoc.path.subgraphAll）。
+    image: ${LR_NEO4J_IMAGE:-docker.m.daocloud.io/library/neo4j:5.26-community}
+    container_name: lightrag-neo4j
+    environment:
+      TZ: Asia/Shanghai
+      NEO4J_AUTH: ${LR_NEO4J_USER:-neo4j}/${LR_NEO4J_PASSWORD:-change-me-please}
+      # 健康检查单独使用显式账号变量，避免在 shell 里拆分 NEO4J_AUTH 的斜杠。
+      HEALTH_USER: ${LR_NEO4J_USER:-neo4j}
+      HEALTH_PASSWORD: ${LR_NEO4J_PASSWORD:-change-me-please}
+      # 让容器在启动时自动安装 APOC 插件。
+      NEO4J_PLUGINS: '["apoc"]'
+      # APOC 的子图过程默认被禁用，需要显式放行；只放行 apoc.* 前缀。
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+    volumes:
+      - lightrag-neo4j-data:/data
+      - lightrag-neo4j-logs:/logs
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - cypher-shell -a bolt://127.0.0.1:7687 -u "$$HEALTH_USER" -p "$$HEALTH_PASSWORD" "RETURN 1" > /dev/null 2>&1
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    ports:
+      # 7474 为浏览器控制台，7687 为 Bolt 协议；同样只绑定回环地址。
+      - "127.0.0.1:17474:7474"
+      - "127.0.0.1:17687:7687"
+    restart: unless-stopped
+
+volumes:
+  lightrag-pg-data:
+  lightrag-neo4j-data:
+  lightrag-neo4j-logs:
