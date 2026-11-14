@@ -11,6 +11,7 @@ public interface RagMessageRepository extends JpaRepository<RagMessage, Long> {
     @Query("select m.conversationId from RagMessage m where m.id = :id")
     Optional<Long> findConversationIdById(@org.springframework.data.repository.query.Param("id") Long id);
     Page<RagMessage> findByConversationId(Long conversationId, Pageable pageable);
+    long countByConversationId(Long conversationId);
     Optional<RagMessage> findByConversationIdAndRequestId(Long conversationId, String requestId);
     List<RagMessage> findTop100ByConversationIdAndIdLessThanOrderByIdDesc(Long conversationId, Long beforeId);
     void deleteByConversationId(Long conversationId);

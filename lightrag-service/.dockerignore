@@ -1,0 +1,11 @@
+**
+!LightRAG/
+!LightRAG/**
+LightRAG/**/*.egg-info/
+LightRAG/**/__pycache__/
+!tenant/
+!tenant/**
+tenant/**/__pycache__/
+!config/
+!config/tenants.yaml
+!Dockerfile

@@ -54,25 +54,30 @@ public class RagConversationService {
     public PageResult<RagConversationVO> list(int pageNo, int pageSize) {
         Long userId = SecurityContextHolder.getRequiredLoginUserId();
         String tenant = tenants.resolveTenantId();
+        long total = conversations.countByUserIdAndTenantId(userId, tenant);
+        int actualPage = clampPage(pageNo, pageSize, total);
+        if (total == 0) return PageResult.empty(actualPage, pageSize);
         var page = conversations.findByUserIdAndTenantId(userId, tenant,
-                PageRequest.of(pageNo - 1, pageSize, Sort.by(Sort.Direction.DESC, "updatedAt", "id")));
-        if (page.getTotalPages() > 0 && pageNo > page.getTotalPages()) {
-            return list(page.getTotalPages(), pageSize);
-        }
+                PageRequest.of(actualPage - 1, pageSize, Sort.by(Sort.Direction.DESC, "updatedAt", "id")));
         return PageResult.of(page.getContent().stream().map(RagConversationVO::from).toList(),
-                page.getTotalElements(), pageNo, pageSize);
+                page.getTotalElements(), actualPage, pageSize);
     }
 
     @Transactional(readOnly = true)
     public PageResult<RagMessageVO> listMessages(Long id, int pageNo, int pageSize) {
         owned(id, false);
+        long total = messages.countByConversationId(id);
+        int actualPage = clampPage(pageNo, pageSize, total);
+        if (total == 0) return PageResult.empty(actualPage, pageSize);
         var page = messages.findByConversationId(id,
-                PageRequest.of(pageNo - 1, pageSize, Sort.by("id")));
-        if (page.getTotalPages() > 0 && pageNo > page.getTotalPages()) {
-            return listMessages(id, page.getTotalPages(), pageSize);
-        }
+                PageRequest.of(actualPage - 1, pageSize, Sort.by("id")));
         return PageResult.of(page.getContent().stream().map(this::view).toList(),
-                page.getTotalElements(), pageNo, pageSize);
+                page.getTotalElements(), actualPage, pageSize);
+    }
+
+    private int clampPage(int pageNo, int pageSize, long total) {
+        if (total == 0) return 1;
+        return (int) Math.min(pageNo, (total - 1) / pageSize + 1);
     }
 
     @Transactional

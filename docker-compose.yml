@@ -4,7 +4,7 @@
 # 使用：
 #   1. docker network create mes-face   # 首次执行一次；与 InsightFace 人脸服务共用的外部网络
 #   2. docker compose up -d --build
-#   3. 浏览器打开 http://localhost （管理员：admin / admin123）
+#   3. 浏览器打开 http://localhost
 #   4. Flyway 自动建表，并在 dev 配置下写入 2026-07-05 至当前日期的演示数据
 #
 # 人脸服务按 deploy/insightface/compose.mes.yml 单独启动；未启动时 MES 与密码登录照常可用。
@@ -16,7 +16,6 @@ services:
 
   mysql:
     image: ${MES_DOCKER_MIRROR:-docker.m.daocloud.io/library}/mysql:8.4
-    container_name: mes-mysql
     environment:
       # 与应用容器同时区，保证 NOW() 写入的业务时间一致
       TZ: Asia/Shanghai
@@ -37,11 +36,11 @@ services:
       start_period: 60s
     # 仅绑定本机回环地址：供宿主机 Gradle 集成测试访问，不暴露到局域网。
     ports:
-      - "127.0.0.1:13306:3306"
+      - "127.0.0.1:${MES_MYSQL_PORT:-13306}:3306"
+    restart: unless-stopped
 
   redis:
     image: ${MES_DOCKER_MIRROR:-docker.m.daocloud.io/library}/redis:8.0-alpine
-    container_name: mes-redis
     # 开启 AOF 持久化：工单号当日流水计数存于 Redis，重启不丢、单号不重复
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -53,7 +52,8 @@ services:
       retries: 10
     # 无需在 Windows 安装 Redis；宿主机测试通过本地 16379 访问容器。
     ports:
-      - "127.0.0.1:16379:6379"
+      - "127.0.0.1:${MES_REDIS_HOST_PORT:-16379}:6379"
+    restart: unless-stopped
 
   backend:
     build:
@@ -61,8 +61,7 @@ services:
       args:
         DOCKER_MIRROR: ${MES_DOCKER_MIRROR:-docker.m.daocloud.io/library}
         GRADLE_MAVEN_MIRROR: ${MES_GRADLE_MAVEN_MIRROR:-https://maven.aliyun.com/repository/public}
-    image: badminton-mes/backend:dev
-    container_name: mes-backend
+    image: badminton-mes/backend:${MES_IMAGE_TAG:-dev}
     environment:
       TZ: Asia/Shanghai
       SPRING_PROFILES_ACTIVE: dev
@@ -73,9 +72,9 @@ services:
       MES_REDIS_HOST: redis
       MES_REDIS_PORT: "6379"
       MES_CORS_ALLOWED_ORIGINS: ${MES_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
-      # 真实微信联调必须显式提供 AppID 和密钥，缺失时让 Compose 在启动前直接报错。
-      MES_WECHAT_MINI_APP_ID: ${MES_WECHAT_MINI_APP_ID:?请在 .env 中设置 MES_WECHAT_MINI_APP_ID}
-      MES_WECHAT_MINI_APP_SECRET: ${MES_WECHAT_MINI_APP_SECRET:?请在 .env 中设置 MES_WECHAT_MINI_APP_SECRET}
+      # Web 可以独立启动；微信接口使用时需要实际 AppID 和密钥。
+      MES_WECHAT_MINI_APP_ID: ${MES_WECHAT_MINI_APP_ID:-}
+      MES_WECHAT_MINI_APP_SECRET: ${MES_WECHAT_MINI_APP_SECRET:-}
       # develop/trial/release 决定后端生成的小程序码指向哪个微信版本。
       MES_WECHAT_CODE_ENV_VERSION: ${MES_WECHAT_CODE_ENV_VERSION:-develop}
       # Clash Fake-IP/TUN 下让容器经主机 TCP 桥接使用 Clash，不影响 MySQL/Redis 等连接。
@@ -99,13 +98,19 @@ services:
       MES_RAG_SSE_TIMEOUT: ${MES_RAG_SSE_TIMEOUT:-180s}
     networks: [default, mes-face]
     ports:
-      - "8080:8080"
+      - "${MES_BIND_ADDRESS:-0.0.0.0}:${MES_BACKEND_PORT:-8080}:8080"
     depends_on:
       # 等依赖健康后再启动，避免 Flyway 建表时连不上数据库反复重启
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/system/auth/registration_roles"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     restart: unless-stopped
 
   frontend:
@@ -114,13 +119,12 @@ services:
       args:
         DOCKER_MIRROR: ${MES_DOCKER_MIRROR:-docker.m.daocloud.io/library}
         NPM_REGISTRY: ${MES_NPM_REGISTRY:-https://registry.npmmirror.com}
-    image: badminton-mes/frontend:dev
-    container_name: mes-frontend
+    image: badminton-mes/frontend:${MES_IMAGE_TAG:-dev}
     ports:
-      - "80:80"
+      - "${MES_BIND_ADDRESS:-0.0.0.0}:${MES_FRONTEND_PORT:-80}:80"
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

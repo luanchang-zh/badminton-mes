@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 public interface RagConversationRepository extends JpaRepository<RagConversation, Long> {
     Optional<RagConversation> findByIdAndUserId(Long id, Long userId);
     Page<RagConversation> findByUserIdAndTenantId(Long userId, String tenantId, Pageable pageable);
+    long countByUserIdAndTenantId(Long userId, String tenantId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from RagConversation c where c.id = :id and c.userId = :userId")

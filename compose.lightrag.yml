@@ -1,0 +1,61 @@
+services:
+  backend:
+    environment:
+      MES_RAG_BASE_URL: http://lightrag:9621
+      MES_RAG_INTERNAL_API_KEY: ${MES_RAG_INTERNAL_API_KEY:?设置与 LR_INTERNAL_API_KEY 一致的密钥}
+
+  postgres:
+    extends:
+      file: lightrag-service/docker-compose.yml
+      service: postgres
+    container_name: !reset null
+    ports: !reset []
+
+  neo4j:
+    extends:
+      file: lightrag-service/docker-compose.yml
+      service: neo4j
+    container_name: !reset null
+    ports: !reset []
+    environment:
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+
+  lightrag:
+    build:
+      context: ./lightrag-service
+    image: badminton-mes/lightrag:${MES_IMAGE_TAG:-dev}
+    env_file: ./lightrag-service/.env
+    environment:
+      LR_INTERNAL_API_KEY: ${MES_RAG_INTERNAL_API_KEY:?设置与 LR_INTERNAL_API_KEY 一致的密钥}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${LR_PG_USER:-lightrag}
+      POSTGRES_PASSWORD: ${LR_PG_PASSWORD:-change-me}
+      POSTGRES_DATABASE: ${LR_PG_DATABASE:-lightrag}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: ${LR_NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${LR_NEO4J_PASSWORD:-change-me-please}
+    ports:
+      - "127.0.0.1:${MES_LIGHTRAG_PORT:-9623}:9621"
+    volumes:
+      - lightrag-files:/app/data
+      - ${MES_LIGHTRAG_TENANTS_FILE:-./lightrag-service/config/tenants.yaml}:/app/config/tenants.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9621/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  lightrag-pg-data:
+  lightrag-neo4j-data:
+  lightrag-neo4j-logs:
+  lightrag-files:

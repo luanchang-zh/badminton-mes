@@ -179,8 +179,11 @@ class RagChatHttpTest {
         assertThat(upstreamCalls.get()).isEqualTo(2);
         assertThat(messages.count()).isEqualTo(4);
         assertReply(send("POST", "/query", "a", query(id, "request_002", "另一个问题")), 400, "A0409");
-        var restored = assertReply(send("GET", "/conversations/" + id + "/messages", "a", null), 200, "00000");
+        var restored = assertReply(send("GET",
+                "/conversations/" + id + "/messages?pageNo=2147483647&pageSize=3", "a", null), 200, "00000");
         assertThat(restored.path("data").path("total").asInt()).isEqualTo(4);
+        assertThat(restored.path("data").path("pageNo").asInt()).isEqualTo(2);
+        assertThat(restored.path("data").path("list").size()).isEqualTo(1);
     }
 
     @Test
