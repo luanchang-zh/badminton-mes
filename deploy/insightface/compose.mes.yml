@@ -12,6 +12,7 @@
 #
 # !override 需要 Docker Compose 2.24.4 及以上；不加时 Compose 会合并端口列表，
 # 官方的 18097:8080 映射仍会对所有网卡开放。
+# GPU 部署在此文件之后叠加 compose.gpu.yml，具体步骤见同目录 README.md。
 services:
   server:
     ports: !override

@@ -1,0 +1,11 @@
+# 在官方 compose.cpu.yml 和 compose.mes.yml 之后叠加，沿用原模型目录和数据卷。
+services:
+  server:
+    image: ghcr.io/deepinsight/insightface-server:0.3.1-cuda12
+    gpus: all
+    environment:
+      INSIGHTFACE_EXECUTION_PROVIDER: CUDAExecutionProvider
+      INSIGHTFACE_STRICT_CUDA: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      CUDA_MODULE_LOADING: LAZY
