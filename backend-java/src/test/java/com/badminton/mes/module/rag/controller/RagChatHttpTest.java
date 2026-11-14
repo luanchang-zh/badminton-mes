@@ -50,7 +50,7 @@ class RagChatHttpTest {
     @EntityScan(basePackageClasses = RagTenantBinding.class)
     @EnableJpaRepositories(basePackageClasses = RagConversationRepository.class)
     @Import({RagConversationController.class, RagProfileController.class, RagQueryController.class,
-            RagConversationService.class, RagChatService.class, RagTenantResolver.class,
+            RagConversationService.class, RagChatService.class, RagTenantResolver.class, RagBindingService.class,
             RagQueryServiceImpl.class, RagConfiguration.class, SecurityWebConfig.class,
             AuthInterceptor.class, GlobalExceptionHandler.class})
     static class Application { }
@@ -61,6 +61,7 @@ class RagChatHttpTest {
     @Autowired RagConversationRepository conversations;
     @Autowired RagMessageRepository messages;
     @Autowired RagConversationService conversationService;
+    @Autowired com.badminton.mes.module.rag.config.RagProperties properties;
     @MockitoBean LoginSessionReader sessions;
     @MockitoBean RagClient client;
     @MockitoBean RagStreamClient streamClient;
@@ -104,11 +105,43 @@ class RagChatHttpTest {
         var a = assertReply(send("GET", "/profile", "a", null), 200, "00000");
         assertThat(a.path("data").path("bound").asBoolean()).isTrue();
         assertThat(a.path("data").path("canManageDocuments").asBoolean()).isFalse();
+        assertThat(a.path("data").path("serviceConfigured").asBoolean()).isFalse();
         var b = assertReply(send("GET", "/profile", "b", null), 200, "00000");
         assertThat(b.path("data").path("canManageDocuments").asBoolean()).isTrue();
         var empty = assertReply(send("GET", "/profile", "unbound", null), 200, "00000");
-        assertThat(empty.path("data").path("bound").asBoolean()).isFalse();
-        assertReply(send("POST", "/conversations", "unbound", "{}"), 400, "A0403");
+        assertThat(empty.path("data").path("bound").asBoolean()).isTrue();
+        assertThat(bindings.findByUserId(3L).orElseThrow().getTenantId()).isEqualTo("mes_u_3");
+        assertReply(send("POST", "/conversations", "unbound", "{}"), 200, "00000");
+        properties.setInternalApiKey("test-profile-key");
+        try {
+            var configured = assertReply(send("GET", "/profile", "a", null), 200, "00000");
+            assertThat(configured.path("data").path("serviceConfigured").asBoolean()).isTrue();
+            assertThat(configured.toString()).doesNotContain("test-profile-key", "127.0.0.1");
+        } finally {
+            properties.setInternalApiKey("");
+        }
+        verifyNoInteractions(streamClient, client);
+    }
+
+    @Test
+    void firstVisitsByAnyRoleCreateOneIndependentBinding() throws Exception {
+        when(sessions.resolve("new-user")).thenReturn(Optional.of(user(4, "OPERATOR")));
+        var calls = new ArrayList<CompletableFuture<Void>>();
+        for (int index = 0; index < 8; index++) {
+            calls.add(CompletableFuture.runAsync(() -> {
+                try {
+                    var profile = assertReply(send("GET", "/profile", "new-user", null), 200, "00000");
+                    assertThat(profile.path("data").path("enabled").asBoolean()).isTrue();
+                } catch (Exception exception) {
+                    throw new RuntimeException(exception);
+                }
+            }));
+        }
+        CompletableFuture.allOf(calls.toArray(CompletableFuture[]::new)).join();
+        assertThat(bindings.count()).isEqualTo(3);
+        assertThat(bindings.findByUserId(4L).orElseThrow().getTenantId()).isEqualTo("mes_u_4");
+        assertReply(send("POST", "/conversations", "new-user", "{}"), 200, "00000");
+        assertThat(bindings.findByUserId(1L).orElseThrow().getTenantId()).isEqualTo("user_1");
         verifyNoInteractions(streamClient, client);
     }
 

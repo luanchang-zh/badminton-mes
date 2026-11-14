@@ -1,6 +1,6 @@
 # RAG 聊天后端接口
 
-更新：2026-11-13。LightRAG 尚未部署；MES 聊天接口已实现，通过隔离上游完成协议与业务验证。
+更新：2026-11-14。LightRAG 尚未部署；MES 聊天接口已实现，通过隔离上游完成协议与业务验证。
 
 ## 登录与知识库状态
 
@@ -9,10 +9,10 @@
 `GET /api/rag/profile` 返回：
 
 ```json
-{"code":"00000","message":"ok","userTip":null,"data":{"bound":true,"enabled":true,"canManageDocuments":false}}
+{"code":"00000","message":"ok","userTip":null,"data":{"bound":true,"enabled":true,"canManageDocuments":false,"serviceConfigured":false}}
 ```
 
-此接口只查询本地绑定，不探测上游。`enabled` 表示绑定已启用；服务连接状态由实际查询结果体现。
+已登录用户首次请求此接口时，服务端按用户主键初始化独立的本地绑定，适用于所有角色及新注册用户。重复或并发访问只保留一条绑定，已有租户归属继续使用。`enabled` 表示绑定已启用，`serviceConfigured` 表示本地已配置上游地址和内部密钥。服务未配置时，前端开放本地会话和输入，生成按钮显示“待接入”，跳过文档及生成请求。
 
 ## 会话与消息
 

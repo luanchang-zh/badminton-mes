@@ -259,6 +259,19 @@ async page => {
       assert(await e.p.locator('#rag-question').isDisabled(), `${expected} 状态禁用发送并给出处理指引`)
       await e.context.close()
     }
+    const pending = await setup({ profile: { bound: true, enabled: true, canManageDocuments: true, serviceConfigured: false }, conversations: [] }); envs.push(pending)
+    await pending.p.getByText('问答服务待接入，当前可管理会话和编辑问题。', { exact: true }).waitFor()
+    assert(!await pending.p.locator('#rag-question').isDisabled() && !await pending.p.getByRole('button', { name: '新建对话', exact: true }).isDisabled(), '服务待接入时输入与新建会话可用')
+    await pending.p.locator('#rag-question').fill('接入前编辑问题')
+    await pending.p.locator('select[aria-label="检索方式"]').selectOption('mix')
+    await pending.p.locator('#rag-question').press('Enter')
+    assert(await pending.p.locator('#rag-question').inputValue() === '接入前编辑问题' && await pending.p.getByRole('button', { name: '待接入', exact: true }).isDisabled(), '接入前可编辑问题和模式，Enter 保留草稿')
+    await pending.p.getByRole('button', { name: '新建对话', exact: true }).click()
+    await pending.p.locator('.rag-conversation').waitFor()
+    assert(pending.state.conversations.length === 1, '接入前会话仍保存到 MES 接口')
+    assert(!pending.calls.some(call => call.path === '/api/rag/documents' || call.path.includes('/query') || call.path.endsWith('/retry')), '服务未配置时页面不请求文档、问答或重试接口')
+    await pending.context.close()
+
     const offline = await setup({ documentsError: true }); envs.push(offline)
     await offline.p.locator('.rag-answer').waitFor()
     assert(await offline.p.locator('.rag-notice').isVisible() && !await offline.p.locator('#rag-question').isDisabled(), '上游文档接口离线仍可看历史并重新尝试问答')
@@ -282,7 +295,7 @@ async page => {
     const list = Array.from({ length: 101 }, (_, i) => ({ id: i + 1, title: i === 100 ? '跨页会话' : `会话 ${i + 1}`, activeMessageId: null, createdAt: now, updatedAt: now }))
     const searchAll = await setup({ conversations: list }); envs.push(searchAll)
     await searchAll.p.getByRole('searchbox', { name: '搜索历史对话' }).fill('跨页会话')
-    await searchAll.p.getByRole('button', { name: /跨页会话.*今天/ }).waitFor()
+    await searchAll.p.getByText('跨页会话', { exact: true }).waitFor()
     assert(searchAll.calls.some(c => c.path === '/api/rag/conversations' && c.method === 'GET') && await searchAll.p.locator('.rag-conversation').count() === 1, '读取全部会话分页，搜索可找到第二页的历史')
     await searchAll.context.close()
 

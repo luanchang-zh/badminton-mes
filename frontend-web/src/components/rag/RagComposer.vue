@@ -5,7 +5,7 @@ import type { RagMode } from '@/api/rag'
 
 const question = defineModel<string>('question', { required: true })
 const mode = defineModel<RagMode>('mode', { required: true })
-defineProps<{ enabled: boolean; canSend: boolean; generating: boolean }>()
+defineProps<{ enabled: boolean; canSend: boolean; generating: boolean; servicePending: boolean }>()
 const emit = defineEmits<{ send: []; stop: [] }>()
 const composing = ref(false), textarea = ref<HTMLTextAreaElement>()
 function keydown(event: KeyboardEvent) {
@@ -31,7 +31,7 @@ defineExpose({ focus: () => textarea.value?.focus() })
         </label>
         <span class="rag-question-count" aria-live="off">{{ question.length }} / 2000</span>
         <button v-if="generating" type="button" class="rag-send-button" @click="emit('stop')"><span class="rag-stop-square" />停止</button>
-        <button v-else type="submit" class="rag-send-button" :disabled="!canSend">发送 <el-icon><Top /></el-icon></button>
+        <button v-else type="submit" class="rag-send-button" :disabled="!canSend">{{ servicePending ? '待接入' : '发送' }} <el-icon v-if="!servicePending"><Top /></el-icon></button>
       </div>
     </form>
   </div>

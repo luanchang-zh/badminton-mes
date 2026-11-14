@@ -5,6 +5,8 @@ import java.util.Optional;
 import com.badminton.mes.module.rag.dal.entity.RagTenantBinding;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * 租户绑定查询。
@@ -25,4 +27,12 @@ public interface RagTenantBindingRepository extends JpaRepository<RagTenantBindi
      * @return 绑定关系，不存在时为空
      */
     Optional<RagTenantBinding> findByUserId(Long userId);
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO rag_tenant_binding (user_id, tenant_id, enabled)
+            VALUES (:userId, :tenantId, 1)
+            ON DUPLICATE KEY UPDATE user_id = user_id
+            """, nativeQuery = true)
+    int createIfAbsent(Long userId, String tenantId);
 }

@@ -26,8 +26,9 @@ export function useRagChat() {
   const serverGenerating = computed(() => messages.value.find(m => m.status === 'GENERATING' && m.role === 'assistant'))
   const generating = computed(() => busy.value || !!serverGenerating.value)
   const available = computed(() => !demo.value && !!profile.value?.bound && !!profile.value?.enabled)
+  const servicePending = computed(() => profile.value?.serviceConfigured === false)
   const inputEnabled = computed(() => available.value && !loading.value && !messagesLoading.value && !creating.value && documentState.value !== 'empty' && documentState.value !== 'indexing')
-  const canSend = computed(() => inputEnabled.value && !generating.value && !!draft.value.trim())
+  const canSend = computed(() => inputEnabled.value && !servicePending.value && !generating.value && !!draft.value.trim())
   const blocked = computed(() => {
     if (demo.value) return '演示账号仅支持浏览，请使用正式账号登录后提问'
     if (loadError.value) return loadError.value
@@ -102,6 +103,7 @@ export function useRagChat() {
   }
 
   async function checkDocuments(stamp = epoch) {
+    if (servicePending.value) return
     const previousNotice = notice.value
     try {
       const documents = await ragApi.documents(lifecycle.signal)
@@ -321,7 +323,7 @@ export function useRagChat() {
   }
 
   async function retry(message: RagMessage) {
-    if (!inputEnabled.value || generating.value || !['FAILED', 'CANCELLED'].includes(message.status)) return
+    if (!inputEnabled.value || servicePending.value || generating.value || !['FAILED', 'CANCELLED'].includes(message.status)) return
     const original = resend.get(message.id)?.question
     const question = messages.value.find(m => m.id === message.replyToId)?.content ?? ''
     await run(original ?? { conversationId: message.conversationId, requestId: newRagRequestId(), question, mode: message.mode }, message)
@@ -347,7 +349,7 @@ export function useRagChat() {
   onBeforeRouteLeave(async () => { await stop() })
   onUnmounted(() => { deactivate(); unregister() })
   return { profile, conversations, messages, selectedId, selected, loading, messagesLoading, olderLoading,
-    generating, creating, notice, blocked, draft, mode, messagePage, inputEnabled, canSend, available,
+    generating, creating, notice, blocked, draft, mode, messagePage, inputEnabled, canSend, available, servicePending,
     initialize, checkDocuments, selectConversation, newConversation, renameConversation, deleteConversation,
     loadOlder, send, stop, retry }
 }

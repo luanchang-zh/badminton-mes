@@ -5,7 +5,12 @@ import type { SseEvent } from '@/utils/sse'
 
 export type RagMode = 'naive' | 'mix' | 'local' | 'global' | 'hybrid'
 export type MessageStatus = 'GENERATING' | 'COMPLETED' | 'CANCELLED' | 'FAILED'
-export interface RagProfile { bound: boolean; enabled: boolean; canManageDocuments: boolean }
+export interface RagProfile {
+  bound: boolean
+  enabled: boolean
+  canManageDocuments: boolean
+  serviceConfigured?: boolean
+}
 export interface RagReference { referenceId: string; sourceName: string; chunks: string[] }
 export interface RagConversation {
   id: number; title: string; activeMessageId: number | null; createdAt: string; updatedAt: string

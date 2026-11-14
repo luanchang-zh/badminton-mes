@@ -15,7 +15,7 @@ defineOptions({ name: 'RagChatView' })
 const user = useUserStore()
 const chat = useRagChat()
 const { conversations, messages, selectedId, selected, loading, messagesLoading, olderLoading, generating, creating,
-  notice, blocked, draft, mode, messagePage, inputEnabled, canSend, available } = chat
+  notice, blocked, draft, mode, messagePage, inputEnabled, canSend, available, servicePending } = chat
 const composer = ref<InstanceType<typeof RagComposer>>()
 const focusMode = ref<'pointer' | 'keyboard'>('pointer')
 const sourcesMessage = ref<RagMessage | null>(null), sourceId = ref(''), sourceOpen = ref(false)
@@ -61,15 +61,16 @@ async function confirmDialog() {
         <button v-if="latestAnswer" type="button" class="rag-text-button" @click="openSources(latestAnswer)">查看来源</button>
       </header>
       <div v-if="notice" class="rag-notice" role="status"><span>{{ notice }}</span><button type="button" class="rag-text-button" @click="chat.checkDocuments()">重新检测</button><button type="button" class="rag-icon-button" aria-label="关闭提示" @click="notice = ''">×</button></div>
+      <div v-else-if="available && servicePending" class="rag-notice" role="status">问答服务待接入，当前可管理会话和编辑问题。</div>
       <div v-if="!messages.length && !messagesLoading" class="rag-empty">
         <template v-if="loading"><h2>正在加载知识库…</h2></template>
         <template v-else-if="blocked"><h2>知识库暂不可用</h2><p>{{ blocked }}</p><button type="button" class="rag-text-button" @click="chat.initialize()">重新加载</button></template>
         <template v-else><h2>有什么需要查询的？</h2><p>从工艺、设备和质量资料中查找答案。</p><div class="rag-examples"><button v-for="example in examples" :key="example" type="button" @click="fillExample(example)">{{ example }}<span aria-hidden="true">↗</span></button></div></template>
       </div>
-      <RagMessageList v-else :messages="messages" :loading="messagesLoading" :older-loading="olderLoading" :has-older="messagePage > 1" :conversation-id="selectedId" :user-name="user.userName" :can-retry="inputEnabled && !generating"
+      <RagMessageList v-else :messages="messages" :loading="messagesLoading" :older-loading="olderLoading" :has-older="messagePage > 1" :conversation-id="selectedId" :user-name="user.userName" :can-retry="inputEnabled && !servicePending && !generating"
         @sources="openSources" @retry="chat.retry" @older="chat.loadOlder" />
       <div v-if="messages.length && blocked && !loading" class="rag-blocked-note" role="status">{{ blocked }}</div>
-      <RagComposer ref="composer" v-model:question="draft" v-model:mode="mode" :enabled="inputEnabled" :can-send="canSend" :generating="generating" @send="chat.send" @stop="chat.stop" />
+      <RagComposer ref="composer" v-model:question="draft" v-model:mode="mode" :enabled="inputEnabled" :can-send="canSend" :generating="generating" :service-pending="servicePending" @send="chat.send" @stop="chat.stop" />
       <span class="rag-sr-only" role="status" aria-live="polite">{{ generating ? '正在生成回答' : '回答已结束' }}</span>
     </section>
     <RagSources v-if="sourceOpen && !narrow" :references="sourceReferences" :selected-reference="sourceId" @close="sourceOpen = false" />
