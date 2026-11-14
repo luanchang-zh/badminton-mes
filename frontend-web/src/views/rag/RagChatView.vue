@@ -5,6 +5,7 @@ import RagConversationList from '@/components/rag/RagConversationList.vue'
 import RagMessageList from '@/components/rag/RagMessageList.vue'
 import RagComposer from '@/components/rag/RagComposer.vue'
 import RagSources from '@/components/rag/RagSources.vue'
+import RagDocumentUpload from '@/components/rag/RagDocumentUpload.vue'
 import { useRagChat } from '@/composables/useRagChat'
 import { useUserStore } from '@/stores/user'
 import { ragError } from '@/api/rag'
@@ -14,7 +15,7 @@ import './rag-chat.css'
 defineOptions({ name: 'RagChatView' })
 const user = useUserStore()
 const chat = useRagChat()
-const { conversations, messages, selectedId, selected, loading, messagesLoading, olderLoading, generating, creating,
+const { profile, documents, conversations, messages, selectedId, selected, loading, messagesLoading, olderLoading, generating, creating,
   notice, blocked, draft, mode, messagePage, inputEnabled, canSend, available, servicePending } = chat
 const composer = ref<InstanceType<typeof RagComposer>>()
 const focusMode = ref<'pointer' | 'keyboard'>('pointer')
@@ -58,7 +59,11 @@ async function confirmDialog() {
     <section class="rag-chat" aria-label="当前对话">
       <header class="rag-chat-heading">
         <div class="rag-chat-title"><h1>{{ selected?.title || '新对话' }}</h1><time v-if="selected" :datetime="selected.updatedAt">{{ new Date(selected.updatedAt).toLocaleString('zh-CN', { hour12: false }) }}</time></div>
-        <button v-if="latestAnswer" type="button" class="rag-text-button" @click="openSources(latestAnswer)">查看来源</button>
+        <div class="rag-chat-actions">
+          <button v-if="latestAnswer" type="button" class="rag-text-button" @click="openSources(latestAnswer)">查看来源</button>
+          <RagDocumentUpload v-if="available && !servicePending && profile?.canManageDocuments"
+            :key="user.userId ?? user.userNo" :documents="documents" @refresh="chat.checkDocuments()" />
+        </div>
       </header>
       <div v-if="notice" class="rag-notice" role="status"><span>{{ notice }}</span><button type="button" class="rag-text-button" @click="chat.checkDocuments()">重新检测</button><button type="button" class="rag-icon-button" aria-label="关闭提示" @click="notice = ''">×</button></div>
       <div v-else-if="available && servicePending" class="rag-notice" role="status">问答服务待接入，当前可管理会话和编辑问题。</div>

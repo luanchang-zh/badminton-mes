@@ -1,7 +1,7 @@
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { newRagRequestId, ragApi, ragError, streamRag } from '@/api/rag'
-import type { RagConversation, RagMessage, RagMeta, RagMode, RagProfile, RagQuestion, RagReference } from '@/api/rag'
+import type { RagConversation, RagDocument, RagMessage, RagMeta, RagMode, RagProfile, RagQuestion, RagReference } from '@/api/rag'
 import { ApiError, MOCK_TOKEN } from '@/utils/request'
 import { registerRagCancellation } from '@/utils/rag-cancellation'
 import { useUserStore } from '@/stores/user'
@@ -16,6 +16,7 @@ export function useRagChat() {
   const profile = ref<RagProfile | null>(null)
   const conversations = ref<RagConversation[]>([])
   const messages = ref<RagMessage[]>([])
+  const documents = ref<RagDocument[]>([])
   const selectedId = ref<number | null>(null)
   const loading = ref(false), messagesLoading = ref(false), olderLoading = ref(false)
   const busy = ref(false), creating = ref(false), notice = ref(''), loadError = ref('')
@@ -34,7 +35,9 @@ export function useRagChat() {
     if (loadError.value) return loadError.value
     if (!profile.value?.bound) return '当前账号尚未开通知识库，请联系管理员绑定知识库'
     if (!profile.value.enabled) return '当前知识库已停用，请联系管理员启用'
-    if (documentState.value === 'empty') return '知识库暂无资料，请联系管理员上传工艺、设备或质量文档'
+    if (documentState.value === 'empty') return profile.value.canManageDocuments
+      ? '知识库暂无资料，请先上传工艺、设备或质量文档'
+      : '知识库暂无资料，请联系管理员上传工艺、设备或质量文档'
     if (documentState.value === 'indexing') return '知识库资料尚未就绪，请等待处理完成或联系管理员检查文档'
     return ''
   })
@@ -106,9 +109,10 @@ export function useRagChat() {
     if (servicePending.value) return
     const previousNotice = notice.value
     try {
-      const documents = await ragApi.documents(lifecycle.signal)
+      const result = await ragApi.documents(lifecycle.signal)
       if (!valid(stamp)) return
-      documentState.value = !documents.length ? 'empty' : documents.some(d => d.status === 'COMPLETED') ? 'ready' : 'indexing'
+      documents.value = result
+      documentState.value = !result.length ? 'empty' : result.some(d => d.status === 'COMPLETED') ? 'ready' : 'indexing'
       if (notice.value === previousNotice) notice.value = ''
     } catch (error) {
       if (valid(stamp)) { documentState.value = 'unknown'; notice.value = ragError(error) }
@@ -332,7 +336,7 @@ export function useRagChat() {
   function reset() {
     epoch++; readSerial++; listSerial++; lifecycle.abort(); messageRead.abort(); clearTimeout(pollTimer)
     lifecycle = new AbortController(); messageRead = new AbortController()
-    profile.value = null; conversations.value = []; messages.value = []; selectedId.value = null
+    profile.value = null; conversations.value = []; messages.value = []; documents.value = []; selectedId.value = null
     draft.value = ''; mode.value = 'naive'; notice.value = ''; loadError.value = ''; documentState.value = 'unknown'
     loading.value = false; messagesLoading.value = false; olderLoading.value = false; busy.value = false; creating.value = false
     resend.clear()
@@ -348,7 +352,7 @@ export function useRagChat() {
   onMounted(activate); onActivated(activate); onDeactivated(deactivate)
   onBeforeRouteLeave(async () => { await stop() })
   onUnmounted(() => { deactivate(); unregister() })
-  return { profile, conversations, messages, selectedId, selected, loading, messagesLoading, olderLoading,
+  return { profile, conversations, messages, documents, selectedId, selected, loading, messagesLoading, olderLoading,
     generating, creating, notice, blocked, draft, mode, messagePage, inputEnabled, canSend, available, servicePending,
     initialize, checkDocuments, selectConversation, newConversation, renameConversation, deleteConversation,
     loadOlder, send, stop, retry }

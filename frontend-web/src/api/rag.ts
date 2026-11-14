@@ -37,6 +37,11 @@ const options = (signal?: AbortSignal): RequestOptions => ({ silent: true, signa
 export const ragApi = {
   profile: (signal?: AbortSignal) => service.get<never, RagProfile>('/rag/profile', options(signal)),
   documents: (signal?: AbortSignal) => service.get<never, RagDocument[]>('/rag/documents', { ...options(signal), timeout: 8000 }),
+  uploadDocument(file: File, signal?: AbortSignal) {
+    const form = new FormData()
+    form.append('file', file)
+    return service.post<never, string>('/rag/documents', form, { ...options(signal), timeout: 75000 })
+  },
   conversations: (pageNo = 1, signal?: AbortSignal) => service.get<never, PageResult<RagConversation>>('/rag/conversations', { ...options(signal), params: { pageNo, pageSize: 100 } }),
   create: () => service.post<never, RagConversation>('/rag/conversations', {}, options()),
   rename: (id: number, title: string) => service.patch<never, RagConversation>(`/rag/conversations/${id}`, { title }, options()),

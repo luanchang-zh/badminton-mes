@@ -39,6 +39,7 @@
 .rag-chat { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .rag-chat-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-shrink: 0; min-height: 66px; padding: 12px 24px; border-bottom: 1px solid #e9edf3; }
 .rag-chat-title { min-width: 0; }
+.rag-chat-actions { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
 .rag-chat-title h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; line-height: 24px; font-weight: 600; color: #202a36; }
 .rag-chat-title time { color: #687381; font-size: 12px; line-height: 20px; }
 .rag-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 2px; flex-shrink: 0; border: 0; border-radius: 2px; background: transparent; color: #286bb4; font-size: 13px; }
