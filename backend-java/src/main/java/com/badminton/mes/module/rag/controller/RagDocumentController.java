@@ -14,6 +14,11 @@ import com.badminton.mes.module.rag.constants.RagErrorCodeConstants;
 import com.badminton.mes.module.rag.controller.vo.RagDocumentRespVO;
 import com.badminton.mes.module.rag.controller.vo.RagTextUploadReqVO;
 import com.badminton.mes.module.rag.service.RagDocumentService;
+import com.badminton.mes.module.rag.client.dto.RagDocumentContent;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -103,6 +108,34 @@ public class RagDocumentController {
         // 列表接口无数据时返回空数组而非 null(API-002)，由 VO 的批量转换保证
         return CommonResult.success(
                 RagDocumentRespVO.fromAll(ragDocumentService.listDocuments()));
+    }
+
+    /** Preview original text; tenant resolution stays inside the service. */
+    @GetMapping("/{docId}/text")
+    public CommonResult<RagDocumentContent> readDocument(@PathVariable String docId) {
+        return CommonResult.success(ragDocumentService.readDocument(docId));
+    }
+
+    /** Download the exact UTF-8 text accepted by the text-only upload interface. */
+    @GetMapping("/{docId}/content")
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable String docId) {
+        RagDocumentContent document = ragDocumentService.readDocument(docId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(document.fileName(), StandardCharsets.UTF_8).build().toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(document.content().getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Import a distinct version; processing failures never delete the original file. */
+    @PostMapping("/{docId}/versions")
+    @RequiresRoles({RoleCodeConstants.ADMIN, RoleCodeConstants.CRAFT_ENGINEER})
+    public CommonResult<String> uploadVersion(@PathVariable String docId,
+            @RequestParam("file") MultipartFile file) {
+        return CommonResult.success(ragDocumentService.uploadVersion(docId,
+                requireSupportedFileName(file), readTextContent(file)));
     }
 
     /**

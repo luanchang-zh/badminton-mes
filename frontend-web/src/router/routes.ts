@@ -25,6 +25,13 @@ import { BARCODE_CONFIG_ROLES } from '@/constants/barcode'
  */
 export const menuRoutes: RouteRecordRaw[] = [
   {
+    path: '/knowledge', redirect: '/knowledge/documents', meta: { title: '知识中心', icon: 'Share' },
+    children: [
+      { path: '/knowledge/documents', name: 'KnowledgeDocuments', component: () => import('@/views/knowledge/KnowledgeDocuments.vue'), meta: { title: '文件管理', icon: 'FolderOpened' } },
+      { path: '/knowledge/graph', name: 'KnowledgeGraph', component: () => import('@/views/knowledge/KnowledgeGraph.vue'), meta: { title: '知识图谱', icon: 'Share' } },
+    ],
+  },
+  {
     path: '/dashboard',
     name: 'DashboardView',
     component: () => import('@/views/dashboard/DashboardView.vue'),

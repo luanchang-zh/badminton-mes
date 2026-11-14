@@ -16,6 +16,10 @@ import com.badminton.mes.common.core.ErrorCode;
  */
 public final class RagErrorCodeConstants {
 
+    /** Document must exist within the current tenant. */
+    public static final ErrorCode DOCUMENT_NOT_FOUND =
+            new ErrorCode("A0404", "文档正文不存在", "资料不存在或尚未完成解析，请刷新后重试");
+
     /** 当前登录用户未绑定任何知识库租户 */
     public static final ErrorCode TENANT_NOT_BOUND =
             new ErrorCode("A0403", "当前用户未绑定知识库租户", "尚未为您开通知识库，请联系管理员");

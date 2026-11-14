@@ -2,6 +2,8 @@ import service, { ApiError, isMockSession, redirectToLogin, TOKEN_STORAGE_KEY } 
 import type { ApiResult, PageResult, RequestOptions } from '@/utils/request'
 import { readSse } from '@/utils/sse'
 import type { SseEvent } from '@/utils/sse'
+import { del, download, get, post } from '@/utils/request'
+import type { KnowledgeGraph } from '@/utils/knowledge'
 
 export type RagMode = 'naive' | 'mix' | 'local' | 'global' | 'hybrid'
 export type MessageStatus = 'GENERATING' | 'COMPLETED' | 'CANCELLED' | 'FAILED'
@@ -21,6 +23,25 @@ export interface RagMessage {
   errorTip: string | null; createdAt: string; updatedAt: string
 }
 export interface RagDocument { docId: string; fileName: string; status: string; statusText: string }
+export interface KnowledgeDocument extends RagDocument {
+  status: 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'UNKNOWN'
+  rawStatus: string
+}
+export interface DocumentContent { docId: string; fileName: string; content: string }
+
+export const listDocuments = () => get<KnowledgeDocument[]>('/rag/documents')
+export const readDocument = (id: string) => get<DocumentContent>(`/rag/documents/${encodeURIComponent(id)}/text`)
+export const downloadDocument = (doc: KnowledgeDocument) => download(`/rag/documents/${encodeURIComponent(doc.docId)}/content`, undefined, doc.fileName)
+export const deleteDocument = (id: string) => del<void>(`/rag/documents/${encodeURIComponent(id)}`)
+export const reprocessFailed = () => ragApi.reprocessFailedDocuments()
+export const graphLabels = () => get<string[]>('/rag/graph/labels')
+export const loadGraph = (label: string, maxDepth: number) => get<KnowledgeGraph>('/rag/graph', { label, maxDepth }, { timeout: 60000 })
+export function uploadDocument(file: File, previousId?: string) {
+  if (!previousId) return ragApi.uploadDocument(file)
+  const data = new FormData()
+  data.append('file', file)
+  return post<string>(`/rag/documents/${encodeURIComponent(previousId)}/versions`, data, { timeout: 75000 })
+}
 export interface RagMeta { conversationId: number; userMessageId: number; assistantMessageId: number }
 export interface RagQuestion { conversationId: number; requestId: string; question: string; mode: RagMode }
 

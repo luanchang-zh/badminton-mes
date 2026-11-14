@@ -8,6 +8,7 @@ import java.util.function.Supplier;
 
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.module.rag.client.dto.RagDocumentDTO;
+import com.badminton.mes.module.rag.client.dto.RagDocumentContent;
 import com.badminton.mes.module.rag.client.dto.RagGraphResult;
 import com.badminton.mes.module.rag.client.dto.RagQueryResult;
 import com.badminton.mes.module.rag.client.dto.RagHistoryMessage;
@@ -138,6 +139,18 @@ public class RagClient {
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {
                 }));
         return RagResponseParser.parseDocuments(response);
+    }
+
+    /** Read stored text from a tenant-bound route without exposing internal credentials. */
+    public RagDocumentContent readDocument(String tenantId, String docId) {
+        String safeTenant = RagTenantGuard.requireValid(tenantId);
+        if (docId == null || !docId.matches("[A-Za-z0-9_-]{1,200}")) {
+            throw new ServiceException(RagErrorCodeConstants.REQUEST_REJECTED);
+        }
+        return execute(() -> restClient.get()
+                .uri(RagTenantGuard.tenantUri(properties, safeTenant, "documents/" + docId + "/content"))
+                .headers(headers -> headers.set("X-API-Key", RagTenantGuard.apiKey(properties)))
+                .retrieve().body(RagDocumentContent.class));
     }
 
     /**
@@ -322,6 +335,7 @@ public class RagClient {
      */
     private ServiceException translateStatus(int status) {
         return switch (status) {
+            case 404 -> new ServiceException(RagErrorCodeConstants.DOCUMENT_NOT_FOUND);
             // 同名文档冲突：上游用 409 明确表达了「已存在」，不是故障
             case 409 -> new ServiceException(RagErrorCodeConstants.DOCUMENT_CONFLICT);
             // 入参不符合上游约束：问题过短、来源非法、分页参数越界等

@@ -1,0 +1,8 @@
+# Local development identities. Each login owns a distinct graph and vector workspace.
+tenants:
+  - user_id: user_1
+    workspace: ws_001
+  - user_id: user_2
+    workspace: ws_002
+  - user_id: user_admin
+    workspace: ws_admin

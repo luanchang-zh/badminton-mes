@@ -40,6 +40,22 @@ import org.springframework.web.client.RestClient;
  */
 class RagClientTest {
 
+    @Test
+    void contentReadsStayUnderTheTenantPrefixAndCarryInternalAuthentication() {
+        server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/documents/doc-a/content"))
+                .andExpect(method(HttpMethod.GET)).andExpect(header("X-API-Key", API_KEY))
+                .andRespond(withSuccess("{\"docId\":\"doc-a\",\"fileName\":\"sop.md\",\"content\":\"source\"}", MediaType.APPLICATION_JSON));
+        assertThat(client.readDocument(TENANT, "doc-a").content()).isEqualTo("source");
+        server.verify();
+    }
+
+    @Test
+    void contentReadsRejectPathInjectionBeforeAnUpstreamRequest() {
+        assertThatThrownBy(() -> client.readDocument(TENANT, "../other"))
+                .isInstanceOf(ServiceException.class);
+        server.verify();
+    }
+
     /** 测试用基础地址 */
     private static final String BASE_URL = "http://rag.test:9621";
 

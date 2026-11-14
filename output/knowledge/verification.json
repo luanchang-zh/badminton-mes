@@ -1,0 +1,9 @@
+{
+  "baseRepository": "https://github.com/luanchang-zh/badminton-mes.git",
+  "documents": 2,
+  "nodes": 24,
+  "edges": 23,
+  "uploadDownloadPreviewVersionDelete": "passed",
+  "modelIntegration": "reused factory-app API configuration",
+  "url": "http://127.0.0.1:18082/knowledge/documents"
+}

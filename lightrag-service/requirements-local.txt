@@ -1,0 +1,17 @@
+# Minimal Windows runtime for the existing text-only MES upload API.
+-r requirements.txt
+fastapi>=0.108
+uvicorn
+python-multipart>=0.0.30
+ascii_colors
+aiofiles
+PyJWT
+python-jose[cryptography]
+bcrypt
+openai>=2,<4
+asyncpg>=0.31
+pgvector>=0.4
+neo4j>=5,<7
+psycopg[binary]>=3
+httpx>=0.28
+pytest-asyncio
