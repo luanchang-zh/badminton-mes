@@ -20,7 +20,7 @@ export function useRagChat() {
   const selectedId = ref<number | null>(null)
   const loading = ref(false), messagesLoading = ref(false), olderLoading = ref(false)
   const busy = ref(false), creating = ref(false), notice = ref(''), loadError = ref('')
-  const documentState = ref<'unknown' | 'ready' | 'empty' | 'indexing'>('unknown')
+  const documentState = ref<'unknown' | 'ready' | 'empty' | 'indexing' | 'failed'>('unknown')
   const draft = ref(''), mode = ref<RagMode>('naive'), messagePage = ref(1)
   const demo = computed(() => user.token === MOCK_TOKEN)
   const selected = computed(() => conversations.value.find(c => c.id === selectedId.value))
@@ -28,7 +28,8 @@ export function useRagChat() {
   const generating = computed(() => busy.value || !!serverGenerating.value)
   const available = computed(() => !demo.value && !!profile.value?.bound && !!profile.value?.enabled)
   const servicePending = computed(() => profile.value?.serviceConfigured === false)
-  const inputEnabled = computed(() => available.value && !loading.value && !messagesLoading.value && !creating.value && documentState.value !== 'empty' && documentState.value !== 'indexing')
+  const inputEnabled = computed(() => available.value && !loading.value && !messagesLoading.value && !creating.value
+    && (documentState.value === 'ready' || documentState.value === 'unknown'))
   const canSend = computed(() => inputEnabled.value && !servicePending.value && !generating.value && !!draft.value.trim())
   const blocked = computed(() => {
     if (demo.value) return '演示账号仅支持浏览，请使用正式账号登录后提问'
@@ -38,6 +39,9 @@ export function useRagChat() {
     if (documentState.value === 'empty') return profile.value.canManageDocuments
       ? '知识库暂无资料，请先上传工艺、设备或质量文档'
       : '知识库暂无资料，请联系管理员上传工艺、设备或质量文档'
+    if (documentState.value === 'failed') return profile.value.canManageDocuments
+      ? '资料索引失败。请打开「上传资料」，点击「重新处理失败资料」。'
+      : '资料索引失败，请联系管理员重新处理。'
     if (documentState.value === 'indexing') return '知识库资料尚未就绪，请等待处理完成或联系管理员检查文档'
     return ''
   })
@@ -112,7 +116,13 @@ export function useRagChat() {
       const result = await ragApi.documents(lifecycle.signal)
       if (!valid(stamp)) return
       documents.value = result
-      documentState.value = !result.length ? 'empty' : result.some(d => d.status === 'COMPLETED') ? 'ready' : 'indexing'
+      if (result.some(document => document.status === 'COMPLETED')) {
+        documentState.value = 'ready'
+      } else if (!result.length) {
+        documentState.value = 'empty'
+      } else {
+        documentState.value = result.every(document => document.status === 'FAILED') ? 'failed' : 'indexing'
+      }
       if (notice.value === previousNotice) notice.value = ''
     } catch (error) {
       if (valid(stamp)) { documentState.value = 'unknown'; notice.value = ragError(error) }

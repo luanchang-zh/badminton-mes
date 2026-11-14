@@ -37,6 +37,8 @@ const options = (signal?: AbortSignal): RequestOptions => ({ silent: true, signa
 export const ragApi = {
   profile: (signal?: AbortSignal) => service.get<never, RagProfile>('/rag/profile', options(signal)),
   documents: (signal?: AbortSignal) => service.get<never, RagDocument[]>('/rag/documents', { ...options(signal), timeout: 8000 }),
+  reprocessFailedDocuments: (signal?: AbortSignal) =>
+    service.post<never, null>('/rag/documents/reprocess-failed', undefined, { ...options(signal), timeout: 75000 }),
   uploadDocument(file: File, signal?: AbortSignal) {
     const form = new FormData()
     form.append('file', file)

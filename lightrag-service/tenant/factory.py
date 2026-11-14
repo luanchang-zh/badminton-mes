@@ -74,10 +74,11 @@ def build_embedding_func(settings: ServiceSettings) -> Any:
     from lightrag.utils import EmbeddingFunc
 
     raw_embedding = partial(
-        openai_embed,
+        openai_embed.func,
         model=settings.embedding_model,
         base_url=settings.embedding_base_url,
         api_key=settings.embedding_api_key,
+        max_token_size=settings.embedding_max_token_size,
     )
     return EmbeddingFunc(
         embedding_dim=settings.embedding_dim,

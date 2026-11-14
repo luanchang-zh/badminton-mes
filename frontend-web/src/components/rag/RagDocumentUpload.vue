@@ -11,6 +11,7 @@ const file = ref<File | null>(null)
 const error = ref('')
 const submitted = ref('')
 const uploading = ref(false)
+const reprocessing = ref(false)
 let request: AbortController | null = null
 
 function close() {
@@ -18,6 +19,7 @@ function close() {
   request = null
   open.value = false
   uploading.value = false
+  reprocessing.value = false
   file.value = null
   error.value = ''
   submitted.value = ''
@@ -44,7 +46,7 @@ function chooseFile(event: Event) {
 
 async function upload() {
   const selected = file.value
-  if (!selected || uploading.value) return
+  if (!selected || uploading.value || reprocessing.value) return
   const controller = new AbortController()
   request = controller
   uploading.value = true
@@ -64,20 +66,40 @@ async function upload() {
     }
   }
 }
+
+async function reprocess() {
+  if (uploading.value || reprocessing.value) return
+  const controller = new AbortController()
+  request = controller
+  reprocessing.value = true
+  error.value = ''
+  try {
+    await ragApi.reprocessFailedDocuments(controller.signal)
+    if (!controller.signal.aborted) emit('refresh')
+  } catch (cause) {
+    if (!controller.signal.aborted) error.value = ragError(cause)
+  } finally {
+    if (request === controller) {
+      reprocessing.value = false
+      request = null
+    }
+  }
+}
 </script>
 
 <template>
   <el-button type="primary" plain @click="open = true; emit('refresh')">上传资料</el-button>
   <el-dialog v-model="open" title="上传知识库资料" width="min(520px, 94vw)" destroy-on-close
-    :close-on-click-modal="!uploading" :close-on-press-escape="!uploading" :show-close="!uploading" @close="close">
+    :close-on-click-modal="!uploading && !reprocessing" :close-on-press-escape="!uploading && !reprocessing"
+    :show-close="!uploading && !reprocessing" @close="close">
     <form v-if="!submitted" id="rag-upload-form" @submit.prevent="upload">
       <label class="rag-dialog-label" for="rag-upload-file">选择文件</label>
       <input id="rag-upload-file" type="file" :accept="formats.join(',')" :disabled="uploading"
         aria-describedby="rag-upload-formats" @change="chooseFile" />
       <p id="rag-upload-formats">支持 UTF-8 编码的 TXT、MD、Markdown、CSV、JSON、LOG，单个文件最多 20 MB。</p>
-      <p v-if="error" class="rag-dialog-error" role="alert">{{ error }}</p>
     </form>
     <p v-else role="status">已提交「{{ submitted }}」处理。索引完成后即可用于问答。</p>
+    <p v-if="error" class="rag-dialog-error" role="alert">{{ error }}</p>
     <ul v-if="documents.length" class="document-list" aria-label="资料处理状态">
       <li v-for="document in documents" :key="document.docId">
         <span :title="document.fileName">{{ document.fileName }}</span>
@@ -85,9 +107,12 @@ async function upload() {
       </li>
     </ul>
     <template #footer>
-      <el-button :disabled="uploading" @click="emit('refresh')">刷新处理状态</el-button>
-      <el-button v-if="submitted" @click="submitted = ''">继续上传</el-button>
-      <el-button v-else type="primary" :disabled="!file" :loading="uploading" native-type="submit" form="rag-upload-form">上传</el-button>
+      <el-button :disabled="uploading || reprocessing" @click="emit('refresh')">刷新处理状态</el-button>
+      <el-button v-if="documents.some(document => document.status === 'FAILED')"
+        :disabled="uploading" :loading="reprocessing" @click="reprocess">重新处理失败资料</el-button>
+      <el-button v-if="submitted" :disabled="reprocessing" @click="submitted = ''">继续上传</el-button>
+      <el-button v-else type="primary" :disabled="!file || reprocessing" :loading="uploading"
+        native-type="submit" form="rag-upload-form">上传</el-button>
     </template>
   </el-dialog>
 </template>
