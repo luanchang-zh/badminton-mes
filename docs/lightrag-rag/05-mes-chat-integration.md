@@ -31,7 +31,7 @@
 
 ## 2. 账号绑定与知识库开通
 
-现状：`rag_tenant_binding.user_id` 对应 MES 用户主键；`tenant_id` 对应 `tenants.yaml` 的 `user_id`。数据库对两列分别设唯一约束。当前开发迁移只绑定 `pmc_demo → user_1`、`manager_demo → user_2`，注册逻辑尚未开通 RAG。
+现状：`rag_tenant_binding.user_id` 对应 MES 用户主键；`tenant_id` 对应 `tenants.yaml` 的 `user_id`。数据库对两列分别设唯一约束。当前所有已登录用户首次访问聊天状态接口时，由 `RagBindingService` 初始化独立本地绑定。演示账号已停用并逻辑删除，原有演示账号创建和固定绑定迁移已于 2026-11-14 关闭。
 
 首轮执行固定租户开通，具体步骤如下。
 
