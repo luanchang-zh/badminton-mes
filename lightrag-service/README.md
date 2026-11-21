@@ -82,6 +82,10 @@ tenants:
 上传目录与工作目录由 workspace 推导为 `<LR_INPUT_DIR>/<workspace>` 与
 `<LR_WORKING_DIR>/<workspace>`，与官方 `DocumentManager` 的规则一致。
 
+Docker 镜像默认使用 `SUMMARY_LANGUAGE="Simplified Chinese"` 抽取图谱实体名称和描述。
+用 Compose 部署时，可以在 `lightrag-service/.env` 中覆盖该值并重新创建服务容器。
+语言设置在后续抽取时生效，已有节点需要重新索引原资料才会更新。
+
 ## 本机自检
 
 ```bash

@@ -12,5 +12,6 @@ RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.g
 COPY tenant ./tenant
 COPY config/tenants.yaml ./config/tenants.yaml
 
+ENV SUMMARY_LANGUAGE="Simplified Chinese"
 EXPOSE 9621
 CMD ["python", "-m", "tenant.server", "--host", "0.0.0.0", "--port", "9621"]
