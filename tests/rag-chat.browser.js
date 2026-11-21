@@ -128,6 +128,21 @@ async page => {
   }
   const envs = []
   try {
+    const citationAnswer = {
+      ...msg(12, 1, 'assistant', '青羽样品在 A-07。[1]\n\n### References\n\n- [1] `青羽样例.txt`\n- [3] 找不到的资料.txt'),
+      references: [reference, { referenceId: '2', sourceName: '青羽样例.txt', chunks: ['青羽样品存放在 A-07。'] }, { referenceId: '3', sourceName: '其他资料.txt', chunks: ['与青羽无关。'] }],
+    }
+    const citations = await setup({ messages: new Map([[1, [msg(11, 1, 'user', '青羽样品在哪里？'), citationAnswer]]]) }); envs.push(citations)
+    const answerView = citations.p.locator('.rag-answer')
+    await answerView.waitFor()
+    const sampleCitations = answerView.getByRole('button', { name: '查看来源 2', exact: true })
+    assert(await sampleCitations.count() === 2 && await sampleCitations.last().innerText() === '[2]', '正文和参考列表按文件名使用结构化来源编号')
+    assert(await answerView.locator('.rag-citation').count() === 2 && (await answerView.innerText()).includes('[3] 找不到的资料.txt'), '无法匹配文件名的引用保留文本')
+    await sampleCitations.last().click()
+    const openSource = citations.p.locator('.rag-sources details[open]')
+    assert(await openSource.count() === 1 && (await openSource.innerText()).includes('青羽样品存放在 A-07。'), '点击纠正后的编号展开青羽原文')
+    await citations.context.close()
+
     const env = await setup(); envs.push(env)
     const { p, state, calls, errors } = env
     await p.locator('.rag-answer').first().waitFor()

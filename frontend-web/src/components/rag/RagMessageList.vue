@@ -37,7 +37,7 @@ async function copy(message: RagMessage) {
           <div v-if="message.role === 'user'" class="rag-user-bubble">{{ message.content }}</div>
           <template v-else>
             <div class="rag-assistant-name">知识库助手</div>
-            <RagAnswer v-if="message.content" :content="message.content" :references="message.references" @cite="id => emit('sources', message, id)" />
+            <RagAnswer v-if="message.content" :content="message.content" :references="message.references" :generating="message.status === 'GENERATING'" @cite="id => emit('sources', message, id)" />
             <div v-if="message.status === 'GENERATING'" class="rag-message-status">正在生成回答…</div>
             <div v-else-if="message.status === 'FAILED'" class="rag-message-status rag-message-status--error" role="status">{{ message.errorTip || '回答生成失败，请重试' }}</div>
             <div v-else-if="message.status === 'CANCELLED'" class="rag-message-status">已停止生成</div>

@@ -8,6 +8,8 @@ const heading = /^ {0,3}(#{1,6})[ \t]+(.+)$/
 const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/
 const listItem = /^([ \t]*)([-+*]|\d+[.)])[ \t]+(.*)$/
 const quote = /^ {0,3}>[ \t]?/
+const referencesTitle = /^(?:references|参考资料|参考文献|参考来源|引用来源)\s*[:：]?$/i
+const namedCitation = /^\[(\d+)\][ \t]+(.+)$/
 
 function tableCells(line: string): string[] {
   return line.trim().replace(/^\||(?<!\\)\|$/g, '').split(/(?<!\\)\|/).map(cell => cell.trim().replace(/\\\|/g, '|'))
@@ -126,13 +128,43 @@ function renderBlocks(lines: string[], inline: RenderInline, depth = 0): VNodeCh
   return nodes
 }
 
+function namedReferenceTargets(lines: string[], references: RagReference[]): Map<string, string | undefined> {
+  const targets = new Map<string, string | undefined>()
+  let inReferences = false
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index]!
+    const marker = fence.exec(line)?.[1]
+    if (marker) {
+      const closingFence = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`)
+      while (++index < lines.length && !closingFence.test(lines[index]!)) { /* 跳过代码块 */ }
+      continue
+    }
+    const title = heading.exec(line)?.[2]
+    if (title !== undefined || referencesTitle.test(line.trim())) {
+      inReferences = referencesTitle.test((title ?? line).replace(/\s+#+\s*$/, '').trim())
+      continue
+    }
+    if (!inReferences || !line.trim()) continue
+    const entry = listItem.exec(line)?.[3] ?? line.trim()
+    const citation = namedCitation.exec(entry)
+    if (!citation) break
+    const [, id, titleText] = citation
+    const name = titleText!.trim().replace(/^(`|\*\*)(.+)\1$/, '$2').split(/[\\/]/).at(-1)
+    const matching = references.filter(reference => reference.sourceName === name)
+    const target = matching.length === 1 ? matching[0]!.referenceId : undefined
+    // 模型可能把引用从 1 重新编号。无法唯一定位的条目保留文本，避免展开无关来源。
+    targets.set(id!, targets.has(id!) && targets.get(id!) !== target ? undefined : target)
+  }
+  return targets
+}
+
 /** 通过 Vue 文本节点呈现 Markdown 子集；模型输出不会作为 HTML 执行。 */
 export default defineComponent({
   name: 'RagAnswer',
-  props: { content: { type: String, required: true }, references: { type: Array as PropType<RagReference[]>, default: () => [] } },
+  props: { content: { type: String, required: true }, references: { type: Array as PropType<RagReference[]>, default: () => [] }, generating: Boolean },
   emits: { cite: (_id: string) => true },
   setup(props, { emit }) {
-    const inline = (text: string): VNodeChild[] => {
+    const inline = (text: string, resolveReference: (id: string) => string | undefined): VNodeChild[] => {
       const nodes: VNodeChild[] = []
       const pattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^\s)]+\)|\[\d+\])/g
       let cursor = 0
@@ -143,9 +175,9 @@ export default defineComponent({
         else if (token.startsWith('**')) nodes.push(h('strong', token.slice(2, -2)))
         else if (token.startsWith('*')) nodes.push(h('em', token.slice(1, -1)))
         else if (/^\[\d+\]$/.test(token)) {
-          const id = token.slice(1, -1)
-          nodes.push(props.references.some(r => r.referenceId === id)
-            ? h('button', { type: 'button', class: 'rag-citation', 'aria-label': `查看来源 ${id}`, onClick: () => emit('cite', id) }, token)
+          const id = resolveReference(token.slice(1, -1))
+          nodes.push(id
+            ? h('button', { type: 'button', class: 'rag-citation', 'aria-label': `查看来源 ${id}`, onClick: () => emit('cite', id) }, `[${id}]`)
             : token)
         } else {
           const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token)!
@@ -158,8 +190,15 @@ export default defineComponent({
       nodes.push(text.slice(cursor))
       return nodes
     }
-    return () => h('div', { class: 'rag-answer' }, renderBlocks(
-      props.content.replace(/\r\n?/g, '\n').split('\n'), inline,
-    ))
+    return () => {
+      const lines = props.content.replace(/\r\n?/g, '\n').split('\n')
+      const targets = namedReferenceTargets(lines, props.references)
+      const resolveReference = (id: string) => {
+        if (props.generating) return undefined
+        if (targets.size) return targets.get(id)
+        return props.references.find(reference => reference.referenceId === id)?.referenceId
+      }
+      return h('div', { class: 'rag-answer' }, renderBlocks(lines, text => inline(text, resolveReference)))
+    }
   },
 })
