@@ -17,7 +17,7 @@
 .rag-workspace button:focus-visible, .rag-workspace summary:focus-visible { outline: 2px solid #409eff; outline-offset: 2px; }
 .rag-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; border: 0; border-radius: 3px; background: transparent; color: #687381; font-size: 17px; }
 .rag-icon-button:hover { background: #e9eef5; color: #286bb4; }
-.rag-history { display: flex; flex: 0 0 236px; flex-direction: column; min-height: 0; padding: 12px; border-right: 1px solid #e4e7ed; background: #f8fafc; }
+.rag-history { display: flex; flex: 0 0 clamp(220px, 14vw, 280px); flex-direction: column; min-width: 0; min-height: 0; padding: 12px; border-right: 1px solid #e4e7ed; background: #f8fafc; }
 .rag-history-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; margin-bottom: 12px; }
 .rag-history-heading h2 { margin: 0; font-size: 14px; font-weight: 500; color: #687381; }
 .rag-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 16px; border: 1px solid #d6dce5; border-radius: 3px; background: #fff; color: #687381; }
@@ -68,7 +68,12 @@
 .rag-answer p { margin: 0 0 12px; white-space: pre-wrap; }
 .rag-answer ol, .rag-answer ul { margin: 8px 0 16px; padding-left: 26px; }
 .rag-answer li { margin: 5px 0; }
-.rag-answer h4 { margin: 16px 0 8px; font-size: 15px; }
+.rag-answer :is(h2, h3, h4, h5, h6) { margin: 20px 0 8px; line-height: 1.45; color: #202a36; }
+.rag-answer h2 { font-size: 19px; }
+.rag-answer h3 { font-size: 17px; }
+.rag-answer :is(h4, h5, h6) { font-size: 15px; }
+.rag-answer > :first-child { margin-top: 0; }
+.rag-answer li > p { margin: 0 0 4px; }
 .rag-answer a { color: #286bb4; }
 .rag-answer code { padding: 2px 4px; background: #f1f4f8; border-radius: 2px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
 .rag-answer pre { margin: 12px 0; padding: 16px; overflow: auto; border: 1px solid #e4e7ed; border-radius: 4px; background: #f8fafc; }
@@ -106,7 +111,7 @@
 .rag-send-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 72px; height: 32px; padding: 6px 12px; border: 1px solid #286bb4; border-radius: 3px; background: #286bb4; color: #fff; font-size: 13px; }
 .rag-send-button:hover { background: #225e9f; }
 .rag-stop-square { width: 9px; height: 9px; border: 1px solid currentColor; }
-.rag-sources { display: flex; flex: 0 0 328px; flex-direction: column; min-height: 0; border-left: 1px solid #e4e7ed; background: #fbfcfe; }
+.rag-sources { display: flex; flex: 0 0 328px; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid #e4e7ed; background: #fbfcfe; }
 .rag-sources-heading { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; min-height: 66px; padding: 16px; border-bottom: 1px solid #e9edf3; }
 .rag-sources-heading h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .rag-sources-heading h2 span { margin-left: 8px; color: #687381; font-size: 12px; font-weight: 400; }
@@ -127,7 +132,19 @@
 .rag-delete-description { margin: 0; line-height: 1.8; overflow-wrap: anywhere; }
 .rag-dialog-error { margin-bottom: 0; color: #ae3434; line-height: 1.6; }
 .rag-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-@media (max-width: 1550px) { .rag-history { flex-basis: 218px; } }
+.rag-history-drawer .el-drawer__body { display: flex; padding: 0; overflow: hidden; }
+.rag-history-drawer .rag-history { flex: 1; border-right: 0; }
+.rag-history-drawer .rag-history-heading h2 { visibility: hidden; }
+@media (max-width: 900px) {
+  .rag-chat-heading { flex-wrap: wrap; gap: 4px 12px; padding-inline: 16px; }
+  .rag-chat-title { flex: 1 0 100%; }
+  .rag-chat-actions { max-width: 100%; flex-wrap: wrap; }
+  .rag-chat-actions button, .rag-send-button, .rag-mode-label select { min-height: 40px; }
+  .rag-messages { padding-inline: 16px; }
+  .rag-composer-wrap { padding: 0 16px max(16px, env(safe-area-inset-bottom)); }
+  .rag-composer-toolbar { flex-wrap: wrap; gap: 8px; }
+  .rag-message { gap: 8px; }
+}
 @media (max-height: 760px) {
   .rag-chat-heading { min-height: 60px; padding-top: 8px; padding-bottom: 8px; }
   .rag-messages { padding-top: 16px; }

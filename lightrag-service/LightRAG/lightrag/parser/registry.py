@@ -179,6 +179,7 @@ _LEGACY_SUFFIXES = frozenset(
     {
         "txt",
         "md",
+        "markdown",  # MES 接收的 Markdown 扩展名，复用同一文本提取器。
         "mdx",
         "pdf",
         "docx",

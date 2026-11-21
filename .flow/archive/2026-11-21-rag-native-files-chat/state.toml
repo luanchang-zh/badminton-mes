@@ -1,0 +1,76 @@
+name = "rag-native-files-chat"
+phase = "archived"
+created_at = "2026-11-21T08:16:51Z"
+updated_at = "2026-11-21T10:33:21Z"
+original_request = """
+1.可以在不加入外部依赖的情况下 支持pdf等等嘛
+2.优化一下页面（1.思考链直接显示 2.左右比例不对 3.md没有正常编译）
+
+使用flow进行规划"""
+amends = []
+base_sha = "f071f5ae8eca65a0cb826b28fc444147cbf12d55"
+last_check_tree = "3c346487ce11a7158dd2323ce54c8e3ddf0cc237f213564a5332089db5c156cd"
+verify_pack_tree = "3c346487ce11a7158dd2323ce54c8e3ddf0cc237f213564a5332089db5c156cd"
+verify_pack_hash = "0a0fb9092eb6b569"
+verify_pack_round = 5
+verified_content_tree = "dfd30177894d1b413536f7d6843d7390e1c225c2ec2ea2cdf5eb6579a1cf7dc3"
+
+[failure_streak]
+last_failed_ids = []
+consecutive = 0
+total_failures = 4
+
+[[iterations]]
+iteration = 1
+verdict = "fail"
+failed_ids = [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "A6",
+]
+summary = "本轮发现两处可由源码确认的功能缺陷，分别是 UTF-8 原件字节丢失和未闭合反引号后的思考内容泄露。其余失败项已有部分真实回执，需要补齐指定场景的端到端证据。"
+pack_hash = "eb4528be33af5faf"
+pack_mismatch_overridden = false
+submitted_at = "2026-11-21T09:25:36Z"
+
+[[iterations]]
+iteration = 2
+verdict = "fail"
+failed_ids = ["A4"]
+summary = "A1、A2、A3、A5、A6 通过。A4 存在可复现的思考内容泄漏，列表内 Markdown 围栏结束后，后端过滤器仍可能保留后续思考块。"
+pack_hash = "0eefe5dad15c9fb2"
+pack_mismatch_overridden = false
+submitted_at = "2026-11-21T09:40:43Z"
+
+[[iterations]]
+iteration = 3
+verdict = "fail"
+failed_ids = [
+    "A4",
+    "A6",
+]
+summary = "A1、A2、A3、A5 通过。列表内围栏的正常空行仍会触发思考内容泄漏及 Markdown 块渲染错误，A4、A6 未通过。"
+pack_hash = "503dbafb3f555d5c"
+pack_mismatch_overridden = false
+submitted_at = "2026-11-21T09:54:59Z"
+
+[[iterations]]
+iteration = 4
+verdict = "fail"
+failed_ids = ["A3"]
+summary = "A1、A2、A4、A5、A6 通过。A3 的文件头损坏场景已拦截，但提示把受支持格式误报为类型不支持，未满足明确失败提示的验收要求。"
+pack_hash = "a92675154768202b"
+pack_mismatch_overridden = false
+submitted_at = "2026-11-21T10:08:45Z"
+
+[[iterations]]
+iteration = 5
+verdict = "pass"
+failed_ids = []
+summary = "A1–A6 全部通过。损坏 PDF 的页面提示已在真实环境确认，第 5 轮独立探针同时确认有效文件仍通过校验，截断的 Office 文件会得到可操作的失败提示。"
+pack_hash = "0a0fb9092eb6b569"
+pack_mismatch_overridden = false
+submitted_at = "2026-11-21T10:15:14Z"

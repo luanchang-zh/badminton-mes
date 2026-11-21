@@ -2,10 +2,10 @@
 import { onBeforeUnmount, onDeactivated, ref } from 'vue'
 import { ragApi, ragError } from '@/api/rag'
 import type { RagDocument } from '@/api/rag'
+import { knowledgeFileAccept, knowledgeFileFormats, validateKnowledgeFile } from '@/utils/knowledge'
 
 defineProps<{ documents: RagDocument[] }>()
 const emit = defineEmits<{ refresh: [] }>()
-const formats = ['.txt', '.md', '.markdown', '.csv', '.json', '.log']
 const open = ref(false)
 const file = ref<File | null>(null)
 const error = ref('')
@@ -34,14 +34,9 @@ function chooseFile(event: Event) {
   file.value = null
   error.value = ''
   if (!selected) return
-  if (!formats.some(ext => selected.name.toLowerCase().endsWith(ext))) {
-    error.value = '请选择支持的 UTF-8 文本文件'
-  } else if (!selected.size || selected.size > 20 * 1024 * 1024) {
-    error.value = '文件不能为空，且不得超过 20 MB'
-  } else {
-    file.value = selected
-  }
-  if (!file.value) input.value = ''
+  error.value = validateKnowledgeFile(selected.name, selected.size)
+  if (error.value) input.value = ''
+  else file.value = selected
 }
 
 async function upload() {
@@ -94,16 +89,16 @@ async function reprocess() {
     :show-close="!uploading && !reprocessing" @close="close">
     <form v-if="!submitted" id="rag-upload-form" @submit.prevent="upload">
       <label class="rag-dialog-label" for="rag-upload-file">选择文件</label>
-      <input id="rag-upload-file" type="file" :accept="formats.join(',')" :disabled="uploading"
+      <input id="rag-upload-file" type="file" :accept="knowledgeFileAccept" :disabled="uploading"
         aria-describedby="rag-upload-formats" @change="chooseFile" />
-      <p id="rag-upload-formats">支持 UTF-8 编码的 TXT、MD、Markdown、CSV、JSON、LOG，单个文件最多 20 MB。</p>
+      <p id="rag-upload-formats">支持{{ knowledgeFileFormats }}，单个文件最多 20 MiB。</p>
     </form>
     <p v-else role="status">已提交「{{ submitted }}」处理。索引完成后即可用于问答。</p>
     <p v-if="error" class="rag-dialog-error" role="alert">{{ error }}</p>
     <ul v-if="documents.length" class="document-list" aria-label="资料处理状态">
       <li v-for="document in documents" :key="document.docId">
         <span :title="document.fileName">{{ document.fileName }}</span>
-        <span>{{ document.statusText || document.status }}</span>
+        <span>{{ document.failureReason || document.statusText || document.status }}</span>
       </li>
     </ul>
     <template #footer>

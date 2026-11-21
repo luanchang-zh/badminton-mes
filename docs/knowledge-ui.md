@@ -40,9 +40,9 @@ python -m venv .venv
 
 ## 文件管理
 
-支持 UTF-8 的 TXT、Markdown、CSV、JSON、LOG，单文件最大 20 MiB，每批最多 20 个文件。前后端同时校验类型、大小和文本编码；沿用仓库原有文本接口，不将 PDF/DOCX 二进制误当 UTF-8 文本上传。
+支持 UTF-8 的 TXT、Markdown、CSV、JSON、LOG，以及带文字层的 PDF、DOCX、XLSX、PPTX。单文件最大 20 MiB，每批最多 20 个文件。PDF 和 Office 文件由 LightRAG 标准镜像内的解析库处理，扫描版 PDF 需要可选中的文字层后才能导入。列表会提示解析失败原因。
 
-提供文件名/文档编号搜索、状态筛选、分页、统计、后台进度轮询、批量上传与失败重试、正文预览、原文下载、版本导入和删除。列表沿用原接口最近 200 条的范围，达到上限时明确提示筛选范围。
+提供文件名和文档编号搜索、状态筛选、分页、统计、后台进度轮询、批量上传、失败重试、正文预览、原件下载、版本导入和删除。预览显示提取后的文本，下载返回上传原件。列表展示最近 200 条资料。
 
 上传、版本导入、删除及重新处理限 `ADMIN` / `CRAFT_ENGINEER`；已登录且绑定租户的账号可以读取自己的资料与图谱。重新处理按钮明确作用于整个当前租户的失败、待处理或中断文档。
 
@@ -62,10 +62,11 @@ python -m venv .venv
 
 | 接口 | 功能 |
 | --- | --- |
-| `GET /api/rag/documents/{docId}/text` | 正文预览 |
-| `GET /api/rag/documents/{docId}/content` | 带下载文件名、no-store 和 nosniff 的 UTF-8 原文下载 |
+| `GET /api/rag/documents/{docId}/text` | 预览提取文本 |
+| `GET /api/rag/documents/{docId}/content` | 下载原件，响应携带文件名、no-store 和 nosniff |
 | `POST /api/rag/documents/{docId}/versions` | multipart 新版本导入，返回任务追踪号 |
-| `GET /tenant/{user_id}/documents/{doc_id}/content` | 仅供 Java 调用的 LightRAG 扩展；按绑定实例读取，校验内部密钥 |
+| `GET /tenant/{user_id}/documents/{doc_id}/content` | Java 内部预览接口，按绑定实例读取并校验内部密钥 |
+| `GET /tenant/{user_id}/documents/{doc_id}/original` | Java 内部原件接口，按绑定实例读取并校验内部密钥 |
 
 新增内容读取接口未修改 vendored LightRAG 核心源码。Java 接口仍由登录上下文解析租户，Python 路由在注册时绑定实例，避免用户传入路径访问其他 workspace。
 

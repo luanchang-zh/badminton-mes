@@ -4,6 +4,9 @@ import java.util.List;
 
 import com.badminton.mes.module.rag.client.dto.RagDocumentDTO;
 import com.badminton.mes.module.rag.client.dto.RagDocumentContent;
+import com.badminton.mes.module.rag.client.dto.RagDocumentFile;
+
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 知识库文档 Service。
@@ -25,6 +28,9 @@ public interface RagDocumentService {
      */
     String uploadText(String fileSource, String content);
 
+    /** 上传当前租户的文本、PDF 或 Office 原件。 */
+    String uploadFile(String fileName, MultipartFile file);
+
     /**
      * 列出当前租户的文档。
      *
@@ -32,11 +38,14 @@ public interface RagDocumentService {
      */
     List<RagDocumentDTO> listDocuments();
 
-    /** Read original text within the current user's tenant. */
+    /** 预览当前租户文档的提取文本。 */
     RagDocumentContent readDocument(String docId);
 
-    /** Import a new version while retaining the original document. */
-    String uploadVersion(String docId, String fileSource, String content);
+    /** 下载当前租户文档的原件。 */
+    RagDocumentFile downloadDocument(String docId);
+
+    /** 导入独立文件版本，保留原文档。 */
+    String uploadFileVersion(String docId, String fileName, MultipartFile file);
 
     /**
      * 删除当前租户下的指定文档。

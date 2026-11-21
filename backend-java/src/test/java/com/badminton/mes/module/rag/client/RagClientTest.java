@@ -25,6 +25,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -53,6 +54,17 @@ class RagClientTest {
     void contentReadsRejectPathInjectionBeforeAnUpstreamRequest() {
         assertThatThrownBy(() -> client.readDocument(TENANT, "../other"))
                 .isInstanceOf(ServiceException.class);
+        server.verify();
+    }
+
+    @Test
+    void damagedPdfHeaderIsRejectedBeforeSendingTheFile() {
+        var file = new MockMultipartFile("file", "damaged.pdf", "application/pdf",
+                new byte[]{'?', 'P', 'D', 'F', '-'});
+
+        assertThatThrownBy(() -> client.uploadFile(TENANT, file.getOriginalFilename(), file))
+                .isInstanceOfSatisfying(ServiceException.class, error ->
+                        assertThat(error.getErrorCode()).isEqualTo(RagErrorCodeConstants.UPLOAD_BINARY_INVALID));
         server.verify();
     }
 

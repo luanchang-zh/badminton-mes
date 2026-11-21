@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>三组要点：
  * <ol>
- *   <li>上传只接受文本类扩展名与 UTF-8 内容，其余在 Controller 就被拒绝；</li>
+ *   <li>上传保留文件字节，文本资料须为 UTF-8；</li>
  *   <li>写操作限角色，查询不限；</li>
  *   <li><b>所有方法都不接收租户参数</b>——用反射锁死这条签名约束，
  *       防止后续有人「顺手」加一个 tenantId 参数把越权口子打开。</li>
@@ -50,8 +50,9 @@ class RagDocumentControllerTest {
 
     @Test
     void downloadsExactUtf8TextWithPrivateCachePolicy() throws Exception {
-        var document = new com.badminton.mes.module.rag.client.dto.RagDocumentContent("doc-a", "资料.md", "原文正文");
-        when(ragDocumentService.readDocument("doc-a")).thenReturn(document);
+        var document = new com.badminton.mes.module.rag.client.dto.RagDocumentFile(
+                "资料.md", "原文正文".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        when(ragDocumentService.downloadDocument("doc-a")).thenReturn(document);
         mockMvc.perform(get("/api/rag/documents/doc-a/content"))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"))
@@ -62,7 +63,7 @@ class RagDocumentControllerTest {
     @Test
     void versionUploadsUseTheSameTextValidationAsNewUploads() throws Exception {
         var file = new MockMultipartFile("file", "new.md", "text/markdown", "新版".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        when(ragDocumentService.uploadVersion("doc-a", "new.md", "新版")).thenReturn("track-new");
+        when(ragDocumentService.uploadFileVersion(eq("doc-a"), eq("new.md"), any())).thenReturn("track-new");
         mockMvc.perform(multipart("/api/rag/documents/doc-a/versions").file(file))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data").value("track-new"));
     }
@@ -83,9 +84,9 @@ class RagDocumentControllerTest {
     }
 
     @Test
-    @DisplayName("上传文本文件：内容被转成字符串后转发 Service")
+    @DisplayName("上传文本文件：校验 UTF-8 后转发原件")
     void uploadDocumentForwardsTextContent() throws Exception {
-        when(ragDocumentService.uploadText(eq("sop.md"), eq("设备点检标准"))).thenReturn("doc-1");
+        when(ragDocumentService.uploadFile(eq("sop.md"), any())).thenReturn("doc-1");
         MockMultipartFile file = new MockMultipartFile(
                 "file", "sop.md", "text/markdown", "设备点检标准".getBytes());
 
@@ -96,10 +97,10 @@ class RagDocumentControllerTest {
     }
 
     @Test
-    @DisplayName("上传二进制扩展名：返回 A0400 且不调用 Service")
+    @DisplayName("上传不支持的扩展名：返回 A0400 且不调用 Service")
     void uploadDocumentRejectsUnsupportedExtension() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
-                "file", "manual.pdf", "application/pdf", new byte[]{1, 2, 3});
+                "file", "manual.jpg", "image/jpeg", new byte[]{1, 2, 3});
 
         mockMvc.perform(multipart("/api/rag/documents").file(file))
                 .andExpect(status().isBadRequest())
@@ -127,8 +128,8 @@ class RagDocumentControllerTest {
     @DisplayName("列表：把上游状态转换为中文描述")
     void listDocumentsMapsStatus() throws Exception {
         when(ragDocumentService.listDocuments()).thenReturn(List.of(
-                new RagDocumentDTO("doc-1", "sop.md", "processed", RagDocumentStatus.COMPLETED),
-                new RagDocumentDTO("doc-2", "b.md", "weird", RagDocumentStatus.UNKNOWN)));
+                new RagDocumentDTO("doc-1", "sop.md", "processed", RagDocumentStatus.COMPLETED, null),
+                new RagDocumentDTO("doc-2", "b.md", "weird", RagDocumentStatus.UNKNOWN, null)));
 
         mockMvc.perform(get("/api/rag/documents"))
                 .andExpect(status().isOk())

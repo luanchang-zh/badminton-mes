@@ -6,6 +6,7 @@ import com.badminton.mes.common.core.PageResult;
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.common.core.GlobalErrorCodeConstants;
 import com.badminton.mes.common.security.SecurityContextHolder;
+import com.badminton.mes.module.rag.client.RagAnswerText;
 import com.badminton.mes.module.rag.client.dto.*;
 import com.badminton.mes.module.rag.constants.RagErrorCodeConstants;
 import com.badminton.mes.module.rag.controller.vo.*;
@@ -172,9 +173,12 @@ public class RagConversationService {
             RagMessage user = users.get(answer.getReplyToId());
             if (!answer.getRole().equals("assistant") || !answer.getStatus().equals("COMPLETED")
                     || user == null || !seen.add(user.getId())) continue;
-            int length = user.getContent().length() + answer.getContent().length();
-            if (result.size() >= 12 || chars + length > 16000) break;
-            result.addFirst(new RagHistoryMessage("assistant", answer.getContent()));
+            String visibleAnswer = RagAnswerText.clean(answer.getContent());
+            int length = user.getContent().length() + visibleAnswer.length();
+            if (result.size() >= 12 || chars + length > 16000) {
+                break;
+            }
+            result.addFirst(new RagHistoryMessage("assistant", visibleAnswer));
             result.addFirst(new RagHistoryMessage("user", user.getContent()));
             chars += length;
         }
@@ -254,7 +258,8 @@ public class RagConversationService {
 
     private RagMessageVO view(RagMessage m) {
         List<RagReference> references = json.readValue(m.getReferencesJson(), new TypeReference<List<RagReference>>() { });
-        return new RagMessageVO(m.getId(), m.getConversationId(), m.getRole(), m.getContent(), m.getMode(),
+        String content = "assistant".equals(m.getRole()) ? RagAnswerText.clean(m.getContent()) : m.getContent();
+        return new RagMessageVO(m.getId(), m.getConversationId(), m.getRole(), content, m.getMode(),
                 m.getStatus(), m.getReplyToId(), references, m.getErrorTip(), m.getCreatedAt(), m.getUpdatedAt());
     }
 

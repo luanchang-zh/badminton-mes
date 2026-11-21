@@ -46,7 +46,11 @@ public final class RagErrorCodeConstants {
 
     /** 上传文件类型不在白名单内 */
     public static final ErrorCode UPLOAD_TYPE_UNSUPPORTED =
-            new ErrorCode("A0400", "上传文件类型不支持", "只支持纯文本、Markdown 一类可解析为文本的文件");
+            new ErrorCode("A0400", "上传文件类型不支持", "请上传 UTF-8 文本、PDF、DOCX、XLSX 或 PPTX 文件");
+
+    /** 扩展名受支持，但原件的内部结构无法识别。 */
+    public static final ErrorCode UPLOAD_BINARY_INVALID =
+            new ErrorCode("A0400", "无法识别文件结构", "文件可能已损坏、加密或与扩展名不符。请确认文件可正常打开，解除密码保护后按原格式重新导出并上传");
 
     /** 检索模式不在支持范围内 */
     public static final ErrorCode QUERY_MODE_INVALID =
@@ -54,7 +58,7 @@ public final class RagErrorCodeConstants {
 
     /** 上传文件读取失败，例如编码不正确或流被中断 */
     public static final ErrorCode UPLOAD_READ_FAILED =
-            new ErrorCode("A0400", "上传文件读取失败", "文件内容无法读取，请确认是 UTF-8 文本后重试");
+            new ErrorCode("A0400", "上传文件读取失败", "请确认文件完整，文本资料须使用 UTF-8 编码");
 
     /** 流式问答在建立上游连接前就失败，无法再通过 SSE 事件告知前端 */
     public static final ErrorCode STREAM_START_FAILED =

@@ -22,7 +22,7 @@ export interface RagMessage {
   status: MessageStatus; replyToId: number | null; references: RagReference[]
   errorTip: string | null; createdAt: string; updatedAt: string
 }
-export interface RagDocument { docId: string; fileName: string; status: string; statusText: string }
+export interface RagDocument { docId: string; fileName: string; status: string; statusText: string; failureReason?: string | null }
 export interface KnowledgeDocument extends RagDocument {
   status: 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'UNKNOWN'
   rawStatus: string

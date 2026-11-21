@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -128,6 +129,8 @@ def prepare_upstream_config(settings: ServiceSettings) -> None:
         args = initialize_config()
         args.working_dir = str(settings.working_base_dir)
         args.input_dir = str(settings.input_base_dir)
+        # 后台解析器直接从环境变量读取上传根目录，再按 workspace 查找原件。
+        os.environ["INPUT_DIR"] = args.input_dir
         args.kv_storage = settings.kv_storage
         args.vector_storage = settings.vector_storage
         args.graph_storage = settings.graph_storage

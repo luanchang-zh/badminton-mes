@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import com.badminton.mes.common.exception.ServiceException;
 import com.badminton.mes.module.rag.client.dto.RagDocumentDTO;
 import com.badminton.mes.module.rag.client.dto.RagDocumentContent;
+import com.badminton.mes.module.rag.client.dto.RagDocumentFile;
 import com.badminton.mes.module.rag.client.dto.RagGraphResult;
 import com.badminton.mes.module.rag.client.dto.RagQueryResult;
 import com.badminton.mes.module.rag.client.dto.RagHistoryMessage;
@@ -20,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClientException;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * LightRAG 上游服务的同步客户端。
@@ -115,6 +118,27 @@ public class RagClient {
         return RagResponseParser.stringValue(response, "track_id");
     }
 
+    /** 将原始文件交给当前租户的解析流水线，返回异步任务号。 */
+    public String uploadFile(String tenantId, String fileName, MultipartFile file) {
+        String safeTenant = RagTenantGuard.requireValid(tenantId);
+        if (file.getSize() > properties.getMaxUploadSize()) {
+            throw new ServiceException(RagErrorCodeConstants.UPLOAD_TOO_LARGE);
+        }
+        RagFileSignature.validate(fileName, file);
+        var multipart = new MultipartBodyBuilder();
+        multipart.part("file", file.getResource(), MediaType.APPLICATION_OCTET_STREAM).filename(fileName);
+
+        Map<String, Object> response = execute(() -> restClient.post()
+                .uri(RagTenantGuard.tenantUri(properties, safeTenant, "documents/upload"))
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .headers(headers -> headers.set("X-API-Key", RagTenantGuard.apiKey(properties)))
+                .body(multipart.build())
+                .retrieve()
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                }));
+        return RagResponseParser.stringValue(response, "track_id");
+    }
+
     /**
      * 列出该租户的文档。
      *
@@ -141,16 +165,35 @@ public class RagClient {
         return RagResponseParser.parseDocuments(response);
     }
 
-    /** Read stored text from a tenant-bound route without exposing internal credentials. */
+    /** 从当前租户的内部接口读取提取文本。 */
     public RagDocumentContent readDocument(String tenantId, String docId) {
         String safeTenant = RagTenantGuard.requireValid(tenantId);
-        if (docId == null || !docId.matches("[A-Za-z0-9_-]{1,200}")) {
-            throw new ServiceException(RagErrorCodeConstants.REQUEST_REJECTED);
-        }
+        requireDocumentId(docId);
         return execute(() -> restClient.get()
                 .uri(RagTenantGuard.tenantUri(properties, safeTenant, "documents/" + docId + "/content"))
                 .headers(headers -> headers.set("X-API-Key", RagTenantGuard.apiKey(properties)))
                 .retrieve().body(RagDocumentContent.class));
+    }
+
+    /** 从当前租户的内部接口下载原件。 */
+    public RagDocumentFile downloadDocument(String tenantId, String docId) {
+        String safeTenant = RagTenantGuard.requireValid(tenantId);
+        requireDocumentId(docId);
+        var response = execute(() -> restClient.get()
+                .uri(RagTenantGuard.tenantUri(properties, safeTenant, "documents/" + docId + "/original"))
+                .headers(headers -> headers.set("X-API-Key", RagTenantGuard.apiKey(properties)))
+                .retrieve().toEntity(byte[].class));
+        String fileName = response.getHeaders().getContentDisposition().getFilename();
+        if (fileName == null || response.getBody() == null) {
+            throw new ServiceException(RagErrorCodeConstants.UPSTREAM_ERROR);
+        }
+        return new RagDocumentFile(fileName, response.getBody());
+    }
+
+    private void requireDocumentId(String docId) {
+        if (docId == null || !docId.matches("[A-Za-z0-9_-]{1,200}")) {
+            throw new ServiceException(RagErrorCodeConstants.REQUEST_REJECTED);
+        }
     }
 
     /**
@@ -165,7 +208,8 @@ public class RagClient {
      */
     public void deleteDocument(String tenantId, String docId) {
         String safeTenant = RagTenantGuard.requireValid(tenantId);
-        Map<String, Object> payload = Map.of("doc_ids", List.of(docId));
+        requireDocumentId(docId);
+        Map<String, Object> payload = Map.of("doc_ids", List.of(docId), "delete_file", true);
         Map<String, Object> response = execute(() -> restClient.method(HttpMethod.DELETE)
                 .uri(RagTenantGuard.tenantUri(properties, safeTenant, "documents/delete_document"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -233,7 +277,7 @@ public class RagClient {
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {
                 }));
         return new RagQueryResult(
-                RagResponseParser.stringValue(response, "response", "answer"),
+                RagAnswerText.clean(RagResponseParser.stringValue(response, "response", "answer")),
                 RagResponseParser.parseContexts(response),
                 safeMode, RagResponseParser.parseReferences(response));
     }
@@ -338,6 +382,7 @@ public class RagClient {
             case 404 -> new ServiceException(RagErrorCodeConstants.DOCUMENT_NOT_FOUND);
             // 同名文档冲突：上游用 409 明确表达了「已存在」，不是故障
             case 409 -> new ServiceException(RagErrorCodeConstants.DOCUMENT_CONFLICT);
+            case 413 -> new ServiceException(RagErrorCodeConstants.UPLOAD_TOO_LARGE);
             // 入参不符合上游约束：问题过短、来源非法、分页参数越界等
             case 400, 422 -> new ServiceException(RagErrorCodeConstants.REQUEST_REJECTED);
             // 上游限流

@@ -74,13 +74,32 @@ final class RagResponseParser {
             @SuppressWarnings("unchecked")
             Map<String, Object> source = (Map<String, Object>) map;
             String rawStatus = stringValue(source, "status");
+            String fileName = stringValue(source, "file_path", "file_name");
+            RagDocumentStatus status = RagDocumentStatus.fromUpstream(rawStatus);
             documents.add(new RagDocumentDTO(
                     stringValue(source, "id", "doc_id"),
-                    stringValue(source, "file_path", "file_name"),
+                    fileName,
                     rawStatus,
-                    RagDocumentStatus.fromUpstream(rawStatus)));
+                    status,
+                    status == RagDocumentStatus.FAILED
+                            ? documentFailure(fileName, stringValue(source, "error_msg")) : null));
         }
         return documents;
+    }
+
+    /** 将解析错误转换为用户可处理的提示，避免暴露服务端路径。 */
+    private static String documentFailure(String fileName, String error) {
+        String detail = error == null ? "" : error.toLowerCase(java.util.Locale.ROOT);
+        if (detail.contains("already exists") || detail.contains("duplicate")) {
+            return "知识库中已有相同内容";
+        }
+        if (detail.contains("encrypted") || detail.contains("password")) {
+            return "文件已加密，请解除加密后重新上传";
+        }
+        if (fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+            return "PDF 处理失败，请确认文件完整且带有可选中的文字层";
+        }
+        return "资料处理失败，请确认文件完整后重试";
     }
 
     /**

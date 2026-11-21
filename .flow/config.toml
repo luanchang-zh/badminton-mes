@@ -1,0 +1,30 @@
+# flow 工作流配置：可按团队或项目需要自由调整门禁松紧
+# 使用 `flow config set <key> <value>` 快速修改
+
+[layout]
+flow_dir = ".flow"
+specs_dir = "docs/specs"
+
+[specs]
+mode = "external"
+rule = "知识库文件及部署沿用 docs/knowledge-ui.md 与 README.md，聊天接口沿用 docs/api/rag-chat.md，按本次实际契约变化更新对应章节。"
+
+[gates]
+require_shape_approval = true
+require_independent_verify = true
+archive_mode = "manual"
+allow_amend = true
+max_same_failure_streak = 3
+verify_stale_policy = "warn"
+
+[guard]
+enabled = true
+block_source_in_shape = true
+block_source_in_verify = true
+protect_published_specs = false
+extra_allow_in_shape = []
+
+[runner]
+default_timeout_secs = 300
+max_output_bytes = 16384
+default_checks = []

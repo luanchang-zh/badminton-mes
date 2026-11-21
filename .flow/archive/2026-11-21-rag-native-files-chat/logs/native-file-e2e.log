@@ -1,0 +1,13 @@
+在文件管理页面实际提交并收到任务号的文件： rag-083b34-pdf.pdf, rag-083b34-docx.docx, rag-083b34-xlsx.xlsx, rag-083b34-pptx.pptx, rag-083b34-txt.txt, rag-083b34-markdown.markdown, rag-083b34-no-text.pdf, rag-083b34-encrypted.pdf, rag-083b34-damaged.pdf
+索引终态 {
+  pdf: [ 'COMPLETED', null ],
+  docx: [ 'COMPLETED', null ],
+  xlsx: [ 'COMPLETED', null ],
+  pptx: [ 'COMPLETED', null ],
+  txt: [ 'COMPLETED', null ],
+  markdown: [ 'COMPLETED', null ],
+  'no-text': [ 'FAILED', 'PDF 处理失败，请确认文件完整且带有可选中的文字层' ],
+  encrypted: [ 'FAILED', '文件已加密，请解除加密后重新上传' ],
+  damaged: [ 'FAILED', 'PDF 处理失败，请确认文件完整且带有可选中的文字层' ]
+}
+四种原件全部通过预览、原件字节比对、同步问答和来源定位。

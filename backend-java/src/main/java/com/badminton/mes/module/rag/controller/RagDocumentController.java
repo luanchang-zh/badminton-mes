@@ -1,7 +1,7 @@
 package com.badminton.mes.module.rag.controller;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
@@ -36,7 +36,7 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 知识库文档 Controller。
  *
- * <p>Web 层保持单薄：参数校验、文件转文本、转发 Service。
+ * <p>Web 层保持单薄：校验文件名和文本编码，原件由服务层转发。
  * <b>所有接口都不接收租户参数</b>，租户由 Service 内部按登录用户解析，
  * 这是越权防护的根本手段。
  *
@@ -54,6 +54,7 @@ public class RagDocumentController {
     /** 允许上传的扩展名白名单 */
     private static final List<String> TEXT_FILE_EXTENSIONS =
             List.of(".txt", ".md", ".markdown", ".csv", ".json", ".log");
+    private static final List<String> BINARY_FILE_EXTENSIONS = List.of(".pdf", ".docx", ".xlsx", ".pptx");
 
     private final RagDocumentService ragDocumentService;
 
@@ -69,8 +70,7 @@ public class RagDocumentController {
     /**
      * 上传文件作为知识库文档。
      *
-     * <p>只接受能按 UTF-8 解析的文本类文件：二进制格式需要上游安装对应的解析器，
-     * 直接拒收比让上游异步失败更早也更清晰。
+     * <p>文本先校验编码，文件统一以原始字节交给租户解析器。
      *
      * @param file 上传文件
      * @return 上游返回的任务追踪号，供前端查询处理进度
@@ -79,8 +79,7 @@ public class RagDocumentController {
     @RequiresRoles({RoleCodeConstants.ADMIN, RoleCodeConstants.CRAFT_ENGINEER})
     public CommonResult<String> uploadDocument(@RequestParam("file") MultipartFile file) {
         String fileName = requireSupportedFileName(file);
-        return CommonResult.success(
-                ragDocumentService.uploadText(fileName, readTextContent(file)));
+        return CommonResult.success(ragDocumentService.uploadFile(fileName, file));
     }
 
     /**
@@ -110,32 +109,32 @@ public class RagDocumentController {
                 RagDocumentRespVO.fromAll(ragDocumentService.listDocuments()));
     }
 
-    /** Preview original text; tenant resolution stays inside the service. */
+    /** 预览当前租户文档的提取文本。 */
     @GetMapping("/{docId}/text")
     public CommonResult<RagDocumentContent> readDocument(@PathVariable String docId) {
         return CommonResult.success(ragDocumentService.readDocument(docId));
     }
 
-    /** Download the exact UTF-8 text accepted by the text-only upload interface. */
+    /** 返回当前租户的上传原件，禁止浏览器按内容猜测类型。 */
     @GetMapping("/{docId}/content")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable String docId) {
-        RagDocumentContent document = ragDocumentService.readDocument(docId);
+        var document = ragDocumentService.downloadDocument(docId);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename(document.fileName(), StandardCharsets.UTF_8).build().toString())
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .header("X-Content-Type-Options", "nosniff")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(document.content().getBytes(StandardCharsets.UTF_8));
+                .body(document.content());
     }
 
-    /** Import a distinct version; processing failures never delete the original file. */
+    /** 新版独立处理，失败时仍可访问原有版本。 */
     @PostMapping("/{docId}/versions")
     @RequiresRoles({RoleCodeConstants.ADMIN, RoleCodeConstants.CRAFT_ENGINEER})
     public CommonResult<String> uploadVersion(@PathVariable String docId,
             @RequestParam("file") MultipartFile file) {
-        return CommonResult.success(ragDocumentService.uploadVersion(docId,
-                requireSupportedFileName(file), readTextContent(file)));
+        String fileName = requireSupportedFileName(file);
+        return CommonResult.success(ragDocumentService.uploadFileVersion(docId, fileName, file));
     }
 
     /**
@@ -182,34 +181,33 @@ public class RagDocumentController {
             throw new ServiceException(RagErrorCodeConstants.UPLOAD_READ_FAILED);
         }
         String fileName = file.getOriginalFilename();
-        if (fileName == null || fileName.isBlank()) {
+        if (fileName == null || fileName.isBlank() || fileName.length() > 200
+                || fileName.contains("/") || fileName.contains("\\")
+                || fileName.contains(".[") || fileName.chars().anyMatch(Character::isISOControl)) {
             throw new ServiceException(RagErrorCodeConstants.UPLOAD_READ_FAILED);
         }
         String lowerCaseName = fileName.toLowerCase(Locale.ROOT);
-        boolean supported = TEXT_FILE_EXTENSIONS.stream().anyMatch(lowerCaseName::endsWith);
-        if (!supported) {
+        boolean text = TEXT_FILE_EXTENSIONS.stream().anyMatch(lowerCaseName::endsWith);
+        if (!text && BINARY_FILE_EXTENSIONS.stream().noneMatch(lowerCaseName::endsWith)) {
             throw new ServiceException(RagErrorCodeConstants.UPLOAD_TYPE_UNSUPPORTED);
+        }
+        if (text) {
+            requireUtf8(file);
         }
         return fileName;
     }
 
     /**
-     * 按 UTF-8 读取文件文本。
+     * 校验文本编码，后续仍提交原始字节以保留换行和转义字符。
      *
      * @param file 上传文件
-     * @return 文件文本
      * @throws ServiceException 读取失败或编码不是 UTF-8
      */
-    private String readTextContent(MultipartFile file) {
-        // 大小上限由 RagClient 按配置统一把关（同一份配置只读一处），这里只负责解码
-        try {
-            // 用 getBytes 再显式解码，而不是 getInputStream：MultipartFile 允许重复读取，
-            // 且显式解码能把「非 UTF-8 文件」拦截成参数错误而不是让上游收到乱码
-            return StandardCharsets.UTF_8.newDecoder()
-                    .decode(ByteBuffer.wrap(file.getBytes()))
-                    .toString();
+    private void requireUtf8(MultipartFile file) {
+        try (var reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8.newDecoder())) {
+            // 用固定缓冲校验，避免在转发前创建一份完整文本副本。
+            reader.transferTo(java.io.Writer.nullWriter());
         } catch (IOException readError) {
-            // CharacterCodingException 是 IOException 的子类，两者处置一致：都是内容不可读
             throw new ServiceException(RagErrorCodeConstants.UPLOAD_READ_FAILED);
         }
     }

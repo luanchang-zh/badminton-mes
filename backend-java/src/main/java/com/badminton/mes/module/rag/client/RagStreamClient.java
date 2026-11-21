@@ -252,7 +252,7 @@ public class RagStreamClient {
 
         private final Consumer<RagStreamLine> lineConsumer;
 
-        private final StringBuilder answer = new StringBuilder();
+        private final RagAnswerText answerText = new RagAnswerText();
 
         private List<String> contexts = List.of();
         private List<RagReference> references = List.of();
@@ -277,8 +277,16 @@ public class RagStreamClient {
             if (!line.references().isEmpty()) {
                 contexts = line.references();
             }
-            if (line.content() != null) {
-                answer.append(line.content());
+            if (line.kind() == RagStreamLine.Kind.CONTENT) {
+                String visibleContent = answerText.accept(line.content());
+                if (!visibleContent.isEmpty()) {
+                    lineConsumer.accept(new RagStreamLine(RagStreamLine.Kind.CONTENT, visibleContent,
+                            line.references(), null, line.referenceDetails()));
+                } else if (!line.references().isEmpty() || !line.referenceDetails().isEmpty()) {
+                    lineConsumer.accept(new RagStreamLine(RagStreamLine.Kind.REFERENCES, null,
+                            line.references(), null, line.referenceDetails()));
+                }
+                return;
             }
             if (line.kind() != RagStreamLine.Kind.IGNORED) {
                 lineConsumer.accept(line);
@@ -291,7 +299,11 @@ public class RagStreamClient {
          * @return 已收到的正文与上下文
          */
         private RagQueryResult toResult() {
-            return new RagQueryResult(answer.toString(), contexts, mode, references);
+            String tail = answerText.finish();
+            if (!tail.isEmpty()) {
+                lineConsumer.accept(RagStreamLine.content(tail));
+            }
+            return new RagQueryResult(answerText.answer(), contexts, mode, references);
         }
     }
 }

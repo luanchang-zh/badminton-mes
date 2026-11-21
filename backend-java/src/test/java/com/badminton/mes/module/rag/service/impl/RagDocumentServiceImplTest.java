@@ -45,10 +45,11 @@ class RagDocumentServiceImplTest {
     @Test
     void newVersionPreservesOriginalAndUsesADistinctFileSource() {
         when(tenantResolver.resolveTenantId()).thenReturn(TENANT);
-        service.uploadVersion("doc-a", "工艺.md", "新版正文");
+        var file = new org.springframework.mock.web.MockMultipartFile("file", "工艺.md", "text/markdown", new byte[]{1});
+        service.uploadFileVersion("doc-a", "工艺.md", file);
         verify(ragClient).readDocument(TENANT, "doc-a");
-        verify(ragClient).uploadText(eq(TENANT),
-                org.mockito.ArgumentMatchers.matches("工艺-v[0-9]{14}-[a-f0-9]{8}\\.md"), eq("新版正文"));
+        verify(ragClient).uploadFile(eq(TENANT),
+                org.mockito.ArgumentMatchers.matches("工艺-v[0-9]{14}-[a-f0-9]{8}\\.md"), eq(file));
         verify(ragClient, org.mockito.Mockito.never()).deleteDocument(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
@@ -79,7 +80,7 @@ class RagDocumentServiceImplTest {
     void shouldListWithResolvedTenant() {
         when(tenantResolver.resolveTenantId()).thenReturn(TENANT);
         List<RagDocumentDTO> documents = List.of(new RagDocumentDTO(
-                "doc-1", "sop.md", "processed", RagDocumentStatus.COMPLETED));
+                "doc-1", "sop.md", "processed", RagDocumentStatus.COMPLETED, null));
         when(ragClient.listDocuments(TENANT)).thenReturn(documents);
 
         assertThat(service.listDocuments()).isEqualTo(documents);

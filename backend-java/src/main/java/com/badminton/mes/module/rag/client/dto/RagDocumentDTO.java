@@ -12,6 +12,7 @@ import com.badminton.mes.module.rag.enums.RagDocumentStatus;
  * @param fileName   文件名
  * @param rawStatus  上游原始状态字符串
  * @param status     归一化后的状态
+ * @param failureReason 供失败资料显示的安全提示
  * @author 张竹灏
  * @date 2026/11/08
  */
@@ -19,7 +20,8 @@ public record RagDocumentDTO(
         String docId,
         String fileName,
         String rawStatus,
-        RagDocumentStatus status) {
+        RagDocumentStatus status,
+        String failureReason) {
 
     /**
      * 紧凑构造器：状态为空时归入 {@link RagDocumentStatus#UNKNOWN}。

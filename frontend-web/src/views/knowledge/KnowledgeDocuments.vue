@@ -6,7 +6,7 @@ import type { UploadFile, UploadUserFile } from 'element-plus'
 import { usePermission } from '@/composables/usePermission'
 import * as api from '@/api/rag'
 import type { KnowledgeDocument } from '@/api/rag'
-import { validateKnowledgeFile } from '@/utils/knowledge'
+import { knowledgeFileAccept, knowledgeFileFormats, validateKnowledgeFile } from '@/utils/knowledge'
 
 defineOptions({ name: 'KnowledgeDocuments' })
 const { hasRole } = usePermission()
@@ -114,18 +114,28 @@ onUnmounted(() => { requestId++; previewRequest++; clearInterval(timer) })
     <el-alert v-if="!canWrite" title="当前账号可查看和下载资料；上传、更新和删除需要管理员或工艺工程师角色。" type="info" :closable="false" />
     <el-card shadow="never" class="document-card">
       <div class="document-toolbar"><el-input v-model="query" clearable placeholder="搜索文件名或文档编号" aria-label="搜索文件名或文档编号" @input="page=1" /><el-select v-model="status" clearable placeholder="全部处理状态" aria-label="筛选处理状态" @change="page=1"><el-option label="处理中" value="PROCESSING" /><el-option label="已完成" value="COMPLETED" /><el-option label="失败" value="FAILED" /><el-option label="未知" value="UNKNOWN" /></el-select><el-button :loading="loading" @click="load()">刷新</el-button><el-button v-if="canWrite" :disabled="!!pending || !documents.length" @click="retry">重新处理失败资料</el-button><router-link to="/knowledge/graph">查看知识图谱 →</router-link></div>
-      <p class="list-caption">{{ filtered.length }} 份资料 · 支持 UTF-8 文本，单个文件最大 20 MiB</p>
+      <p class="list-caption">{{ filtered.length }} 份资料 · 支持{{ knowledgeFileFormats }}，单个文件最大 20 MiB</p>
       <el-alert v-if="documents.length>=200" title="当前接口展示最近 200 份资料，筛选在已加载的资料内进行。" type="info" :closable="false" />
       <el-table v-loading="loading" :data="rows" row-key="docId" empty-text="暂无资料，上传一份工艺或设备文档开始构建知识库">
         <el-table-column label="资料" min-width="220"><template #default="{row}"><div class="document-name"><span class="file-badge">{{ row.fileName?.split('.').pop()?.toUpperCase().slice(0,4) || 'TXT' }}</span><div><strong>{{ row.fileName }}</strong><small :title="row.docId">{{ row.docId }}</small></div></div></template></el-table-column>
-        <el-table-column label="处理状态" width="140"><template #default="{row}"><el-tag :type="row.status==='COMPLETED' ? 'success' : row.status==='FAILED' ? 'danger' : 'info'" effect="light">{{ row.statusText }}</el-tag><small class="raw-status">{{ row.rawStatus }}</small></template></el-table-column>
+        <el-table-column label="处理状态" min-width="160">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'COMPLETED' ? 'success' : row.status === 'FAILED' ? 'danger' : 'info'" effect="light">{{ row.statusText }}</el-tag>
+            <small class="raw-status">{{ row.failureReason || row.rawStatus }}</small>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" min-width="205"><template #default="{row}"><div class="row-actions"><el-button link type="primary" @click="showPreview(row as KnowledgeDocument)">查看正文</el-button><el-button link type="primary" @click="download(row as KnowledgeDocument)">下载</el-button><el-button v-if="canWrite" link type="primary" :disabled="row.status==='PROCESSING' || !!pending" @click="openUpload(row as KnowledgeDocument)">更新版本</el-button><el-button v-if="canWrite" link type="danger" :disabled="!!pending" @click="remove(row as KnowledgeDocument)">删除</el-button></div></template></el-table-column>
       </el-table>
       <el-pagination v-model:current-page="page" v-model:page-size="pageSize" class="document-pagination" :total="filtered.length" :page-sizes="[10,20,50]" layout="total, sizes, prev, pager, next" />
     </el-card>
     <el-dialog v-model="uploadVisible" :title="previous ? '更新资料版本' : '上传知识资料'" width="min(620px, 94vw)" :close-on-click-modal="false" :close-on-press-escape="!uploading" :show-close="!uploading">
       <el-alert v-if="previous" :title="previous.fileName" description="新版本以独立文件导入，保留旧版本，避免模型处理失败时丢失原资料。新版本处理完成后，可在列表删除旧版。" type="info" show-icon :closable="false" />
-      <el-upload ref="uploader" v-model:file-list="queue" drag action="#" :auto-upload="false" :multiple="!previous" :limit="previous ? 1 : 20" :disabled="uploading" accept=".txt,.md,.markdown,.csv,.json,.log" :on-change="changed" :on-exceed="() => ElMessage.warning(previous ? '每次只能选择一个新版本文件' : '每批最多上传 20 个文件')"><div class="upload-icon">＋</div><strong>将文件拖到这里，或点击选择</strong><template #tip><p class="list-caption">TXT / Markdown / CSV / JSON / LOG · UTF-8 编码 · 单文件不超过 20 MiB</p></template></el-upload>
+      <el-upload ref="uploader" v-model:file-list="queue" drag action="#" :auto-upload="false" :multiple="!previous"
+        :limit="previous ? 1 : 20" :disabled="uploading" :accept="knowledgeFileAccept" :on-change="changed"
+        :on-exceed="() => ElMessage.warning(previous ? '每次只能选择一个新版本文件' : '每批最多上传 20 个文件')">
+        <div class="upload-icon">＋</div><strong>将文件拖到这里，或点击选择</strong>
+        <template #tip><p class="list-caption">{{ knowledgeFileFormats }} · 单文件不超过 20 MiB</p></template>
+      </el-upload>
       <div v-for="file in queue" :key="file.uid" class="upload-outcome"><span>{{ file.name }}</span><el-tag v-if="file.uid != null && outcomes[file.uid]" :type="outcomes[file.uid]!.success ? 'success' : 'warning'">{{ outcomes[file.uid]!.message }}</el-tag><span v-else>等待上传</span></div>
       <template #footer><el-button :disabled="uploading" @click="uploadVisible=false">关闭</el-button><el-button type="primary" :loading="uploading" :disabled="!queue.some(file => file.uid != null && !outcomes[file.uid]?.success)" @click="upload">{{ previous ? '导入新版本' : '上传并建立知识索引' }}</el-button></template>
     </el-dialog>

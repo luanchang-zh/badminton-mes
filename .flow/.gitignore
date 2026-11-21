@@ -1,0 +1,9 @@
+.lock
+worktrees/
+active
+changes/
+specs/
+**/.pending-move-*.json
+**/verified-manifest.json
+**/verify-pack.json
+**/verify-pack.md

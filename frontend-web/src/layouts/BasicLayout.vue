@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -28,6 +28,19 @@ const menus = computed(() =>
 )
 
 const activeMenu = computed(() => route.meta.activeMenu ?? route.path)
+const mobileQuery = window.matchMedia('(max-width: 600px)')
+const mobileViewport = ref(mobileQuery.matches)
+const compactRag = computed(() => mobileViewport.value && route.path === '/rag/chat')
+const mobileMenuOpen = ref(false)
+function updateMobileViewport() { mobileViewport.value = mobileQuery.matches }
+onMounted(() => mobileQuery.addEventListener('change', updateMobileViewport))
+onUnmounted(() => mobileQuery.removeEventListener('change', updateMobileViewport))
+watch([() => route.path, mobileViewport], () => { mobileMenuOpen.value = false })
+
+function toggleNavigation() {
+  if (compactRag.value) mobileMenuOpen.value = !mobileMenuOpen.value
+  else appStore.toggleSidebar()
+}
 
 /** 面包屑：从菜单树反查祖先链（路由已拍平，route.matched 不含分组节点） */
 const breadcrumbs = computed(() => {
@@ -116,8 +129,8 @@ async function handleUserCommand(command: string | number | object) {
 </script>
 
 <template>
-  <el-container class="basic-layout">
-    <el-aside :width="asideWidth" class="basic-layout__aside">
+  <el-container class="basic-layout" :class="{ 'basic-layout--rag-compact': compactRag }">
+    <el-aside v-if="!compactRag" :width="asideWidth" class="basic-layout__aside">
       <div class="basic-layout__logo" role="img" aria-label="羽毛球 MES">
         <span class="basic-layout__brand-icon" aria-hidden="true">
           <img class="basic-layout__brand-image" :src="brandIcon" alt="" width="64" height="64" />
@@ -141,10 +154,10 @@ async function handleUserCommand(command: string | number | object) {
     <el-container class="basic-layout__right">
       <el-header class="basic-layout__header">
         <div class="basic-layout__header-left">
-          <el-icon class="basic-layout__collapse" :size="18" @click="appStore.toggleSidebar()">
-            <Fold v-if="!appStore.sidebarCollapsed" />
-            <Expand v-else />
-          </el-icon>
+          <button class="basic-layout__collapse" type="button" aria-label="切换应用菜单"
+            :aria-expanded="compactRag ? mobileMenuOpen : !appStore.sidebarCollapsed" @click="toggleNavigation">
+            <el-icon :size="18"><Fold v-if="!compactRag && !appStore.sidebarCollapsed" /><Expand v-else /></el-icon>
+          </button>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item v-for="(title, index) in breadcrumbs" :key="index">
               {{ title }}
@@ -186,6 +199,13 @@ async function handleUserCommand(command: string | number | object) {
         </router-view>
       </el-main>
     </el-container>
+
+    <el-drawer v-if="compactRag" v-model="mobileMenuOpen" direction="ltr" size="min(280px, 90vw)"
+      title="应用菜单" append-to-body>
+      <el-menu :default-active="activeMenu" unique-opened router>
+        <SidebarMenuItem v-for="item in menus" :key="item.path" :route="item" />
+      </el-menu>
+    </el-drawer>
 
     <FaceEnrollment ref="faceEnrollment" />
 
@@ -305,6 +325,13 @@ async function handleUserCommand(command: string | number | object) {
 }
 
 .basic-layout__collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
 }
 
@@ -323,5 +350,19 @@ async function handleUserCommand(command: string | number | object) {
   padding: 16px;
   overflow: auto;
   background: var(--mes-page-bg);
+}
+
+.basic-layout--rag-compact .basic-layout__collapse {
+  width: 40px;
+  height: 40px;
+  margin-left: -8px;
+}
+
+.basic-layout--rag-compact .basic-layout__main {
+  padding: 8px;
+}
+
+.basic-layout--rag-compact .basic-layout__user > span:not(.el-avatar) {
+  display: none;
 }
 </style>

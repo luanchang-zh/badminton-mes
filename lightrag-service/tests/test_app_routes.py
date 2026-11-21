@@ -1,4 +1,4 @@
-"""路由注册单测：每个租户各有 33 条带前缀路由，且不存在未加前缀的入口。"""
+"""路由注册单测，验证租户前缀与完整业务入口。"""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def built_app(
 
 
 def test_each_tenant_has_full_route_set(built_app: Any) -> None:
-    """两个租户各有 33 条路由，数量一致。"""
+    """两个租户都有完整的官方路由和资料读取入口。"""
     grouped = collect_tenant_routes(built_app)
 
     assert set(grouped) == {"user_1", "user_2"}
@@ -60,6 +60,7 @@ def test_sample_routes_exist_under_prefix(built_app: Any) -> None:
     paths = {route["path"] for route in grouped["user_1"]}
 
     assert "/tenant/user_1/documents/upload" in paths
+    assert "/tenant/user_1/documents/{doc_id}/original" in paths
     assert "/tenant/user_1/query" in paths
     assert "/tenant/user_1/graphs" in paths
 

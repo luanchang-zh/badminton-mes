@@ -16,8 +16,8 @@ def application():
     empty = SimpleNamespace(doc_status=AsyncMock(), full_docs=AsyncMock())
     empty.doc_status.get_by_id.return_value = None
     empty.full_docs.get_by_id.return_value = None
-    app.include_router(create_content_router(first, 'test-internal'), prefix='/tenant/a')
-    app.include_router(create_content_router(empty, 'test-internal'), prefix='/tenant/b')
+    app.include_router(create_content_router(first, 'test-internal', None), prefix='/tenant/a')
+    app.include_router(create_content_router(empty, 'test-internal', None), prefix='/tenant/b')
     return TestClient(app), docs
 
 

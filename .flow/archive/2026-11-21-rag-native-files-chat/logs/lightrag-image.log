@@ -1,0 +1,55 @@
+#1 [internal] load local bake definitions
+#1 reading from stdin 619B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 629B 0.0s done
+#2 DONE 0.1s
+
+#3 [internal] load metadata for docker.io/library/python:3.12-slim
+#3 DONE 4.8s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 214B 0.1s done
+#4 DONE 0.1s
+
+#5 [stage-0 1/7] FROM docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+#5 resolve docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b 0.1s done
+#5 DONE 0.1s
+
+#6 [internal] load build context
+#6 transferring context: 13.90kB 0.1s done
+#6 DONE 0.1s
+
+#7 [stage-0 4/7] RUN --mount=type=cache,target=/root/.cache/pip     pip install --timeout 120 --retries 8 './LightRAG[api]' 'asyncpg>=0.31,<1' 'pgvector>=0.4.2,<1' 'neo4j>=5,<7'
+#7 CACHED
+
+#8 [stage-0 5/7] RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.get_encoding('o200k_base')"
+#8 CACHED
+
+#9 [stage-0 3/7] COPY LightRAG ./LightRAG
+#9 CACHED
+
+#10 [stage-0 6/7] COPY tenant ./tenant
+#10 CACHED
+
+#11 [stage-0 2/7] WORKDIR /app
+#11 CACHED
+
+#12 [stage-0 7/7] COPY config/tenants.yaml ./config/tenants.yaml
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 exporting manifest sha256:b78c9b2ac4801a2327a7cd72b5d283649bde07e519b16c48b88817e2201b2224 0.0s done
+#13 exporting config sha256:504c536be2e4763aed29b8673e0e1617d9928db15a79732c2d4e49bb1f123bf9 0.0s done
+#13 exporting attestation manifest sha256:00b25717a0afbf09780a103e3556d02c86fda62aa49612362261d6269c860d17 0.1s done
+#13 exporting manifest list sha256:0f06708a55e772a9961e2fe4fecbd31ebd41dc253b5b7c114e4c3bcde3b74788 0.0s done
+#13 naming to docker.io/badminton-mes/lightrag:rag-native-files
+#13 naming to docker.io/badminton-mes/lightrag:rag-native-files done
+#13 unpacking to docker.io/badminton-mes/lightrag:rag-native-files 0.0s done
+#13 DONE 0.3s
+
+#14 resolving provenance for metadata file
+#14 DONE 0.0s
+ badminton-mes/lightrag:rag-native-files  Built

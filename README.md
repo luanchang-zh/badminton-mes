@@ -20,6 +20,8 @@ Invoke-RestMethod http://127.0.0.1:9623/health
 
 PostgreSQL 和 Neo4j 使用当前 Compose 项目的数据卷和内部网络。LightRAG 的输入文件和工作目录保存在 `lightrag-files` 卷中。LightRAG 租户清单须包含 MES 绑定的租户 ID（新绑定默认为 `mes_u_<用户主键>`），每个租户使用独立 workspace。默认读取 `lightrag-service/config/tenants.yaml`，可用 `MES_LIGHTRAG_TENANTS_FILE` 指定本地清单。更新清单后重启 LightRAG。参见 [MES 对接说明](docs/lightrag-rag/05-mes-chat-integration.md)。
 
+标准 LightRAG 镜像包含带文字层的 PDF、DOCX、XLSX、PPTX 解析依赖。文件管理和问答页可上传这些资料，原件保存在对应租户目录。参见 [知识库文件说明](docs/knowledge-ui.md)。
+
 开发环境启动时，Flyway 会创建并写入从 `2026-07-05` 到容器当前日期的演示工单、生产任务、派工明细、批次状态和报工事实数据，供生产报表、实时生产和电子看板联调使用。
 
 只读接口冒烟测试会从前端 API 客户端自动提取路径，经 Nginx 逐条请求，不会写入业务数据：

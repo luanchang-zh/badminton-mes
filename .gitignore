@@ -377,3 +377,25 @@ scripts/*
 .comet-state.lock
 .comet-state-transaction.json
 # <<< Comet managed project state <<<
+
+# >>> flow managed project state >>>
+!/.flow/
+/.flow/*
+!/.flow/.gitignore
+!/.flow/config.toml
+!/.flow/archive/
+!/.flow/archive/**/
+!/.flow/archive/**
+/.flow/.lock
+/.flow/active
+/.flow/changes/
+/.flow/changes/**
+/.flow/specs/
+/.flow/specs/**
+/.flow/worktrees/
+/.flow/worktrees/**
+/.flow/**/.pending-move-*.json
+/.flow/**/verified-manifest.json
+/.flow/**/verify-pack.json
+/.flow/**/verify-pack.md
+# <<< flow managed project state <<<

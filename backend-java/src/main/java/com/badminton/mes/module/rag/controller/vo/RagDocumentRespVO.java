@@ -15,6 +15,7 @@ import com.badminton.mes.module.rag.enums.RagDocumentStatus;
  * @param status      归一化状态
  * @param statusText  中文状态描述
  * @param rawStatus   上游原始状态，便于排查
+ * @param failureReason 失败时供页面显示的提示
  * @author 张竹灏
  * @date 2026/11/08
  */
@@ -23,7 +24,8 @@ public record RagDocumentRespVO(
         String fileName,
         String status,
         String statusText,
-        String rawStatus) {
+        String rawStatus,
+        String failureReason) {
 
     /**
      * 从客户端 DTO 转换。
@@ -38,7 +40,8 @@ public record RagDocumentRespVO(
                 dto.fileName(),
                 status.name(),
                 status.getDescription(),
-                dto.rawStatus());
+                dto.rawStatus(),
+                dto.failureReason());
     }
 
     /**

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tenant.app import ROUTES_PER_TENANT
 from tenant.server import EXIT_CONFIG_ERROR, EXIT_OK, run
 
 TWO_TENANTS = (
@@ -38,8 +39,8 @@ def test_print_routes_lists_two_tenants(tmp_path: Path) -> None:
     )
 
     assert code == EXIT_OK
-    assert "[user_1] 34 条路由" in output
-    assert "[user_2] 34 条路由" in output
+    assert f"[user_1] {ROUTES_PER_TENANT} 条路由" in output
+    assert f"[user_2] {ROUTES_PER_TENANT} 条路由" in output
     assert "/tenant/user_1/documents/upload" in output
     assert "/tenant/user_2/documents/upload" in output
 

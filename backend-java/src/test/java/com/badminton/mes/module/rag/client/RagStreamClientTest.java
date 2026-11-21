@@ -57,6 +57,24 @@ class RagStreamClientTest {
     private RagStreamClient client;
 
     @Test
+    void splitAndInterruptedReasoningNeverReachTheStreamConsumer() {
+        server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/query/stream"))
+                .andRespond(withSuccess("""
+                        {"response":"前缀 `"}
+                        {"response":"<thi"}
+                        {"response":"nk>模型内部内容</th"}
+                        {"response":"ink>\\n### 回答"}
+                        {"response":"<think>流中断后的隐藏内容"}
+                        """, NDJSON));
+        List<RagStreamLine> lines = new ArrayList<>();
+        var result = client.streamQuery(TENANT, "问题", RagQueryMode.MIX, lines::add, new StreamCancellation());
+
+        assertThat(lines).extracting(RagStreamLine::content).containsExactly("前缀 `", "\n### 回答");
+        assertThat(result.answer()).isEqualTo("前缀 `\n### 回答");
+        server.verify();
+    }
+
+    @Test
     void cachedStreamKeepsHistoryAndStructuredReferenceDetails() {
         server.expect(requestTo(BASE_URL + "/tenant/" + TENANT + "/query/stream"))
                 .andExpect(content().json("""

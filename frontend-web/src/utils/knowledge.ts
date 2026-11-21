@@ -28,8 +28,13 @@ export function filterGraph(graph: KnowledgeGraph, query = '', type = '', focus 
   return { nodes, edges, truncated: graph.truncated }
 }
 
+export const knowledgeFileExtensions = ['.txt', '.md', '.markdown', '.csv', '.json', '.log', '.pdf', '.docx', '.xlsx', '.pptx']
+export const knowledgeFileAccept = knowledgeFileExtensions.join(',')
+export const knowledgeFileFormats = 'UTF-8 文本、带文字层的 PDF、DOCX、XLSX、PPTX'
+
 export function validateKnowledgeFile(name: string, size: number): string {
-  if (!/\.(txt|md|markdown|csv|json|log)$/i.test(name)) return '支持 TXT、Markdown、CSV、JSON 和 LOG 文件'
+  const extension = name.slice(name.lastIndexOf('.')).toLowerCase()
+  if (!knowledgeFileExtensions.includes(extension)) return '支持' + knowledgeFileFormats
   if (!size) return '不能上传空文件'
   if (size > 20 * 1024 * 1024) return '单个文件不能超过 20 MiB'
   return ''
