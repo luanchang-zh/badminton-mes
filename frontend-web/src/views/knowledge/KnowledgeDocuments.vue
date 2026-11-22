@@ -22,6 +22,12 @@ const pageSize = ref(10)
 const pending = ref('')
 const filtered = computed(() => documents.value.filter(doc => (!status.value || doc.status === status.value) && (doc.fileName + ' ' + doc.docId).toLowerCase().includes(query.value.trim().toLowerCase())))
 const rows = computed(() => filtered.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
+const emptyText = computed(() => {
+  if (loading.value) return '正在加载资料…'
+  if (error.value) return '资料加载失败，请刷新重试'
+  if (documents.value.length) return '没有符合搜索或筛选条件的资料'
+  return canWrite.value ? '暂无资料，上传一份工艺或设备文档开始构建知识库' : '暂无资料'
+})
 const completed = computed(() => documents.value.filter(doc => doc.status === 'COMPLETED').length)
 const processing = computed(() => documents.value.filter(doc => doc.status === 'PROCESSING').length)
 const failed = computed(() => documents.value.filter(doc => doc.status === 'FAILED').length)
@@ -116,7 +122,7 @@ onUnmounted(() => { requestId++; previewRequest++; clearInterval(timer) })
       <div class="document-toolbar"><el-input v-model="query" clearable placeholder="搜索文件名或文档编号" aria-label="搜索文件名或文档编号" @input="page=1" /><el-select v-model="status" clearable placeholder="全部处理状态" aria-label="筛选处理状态" @change="page=1"><el-option label="处理中" value="PROCESSING" /><el-option label="已完成" value="COMPLETED" /><el-option label="失败" value="FAILED" /><el-option label="未知" value="UNKNOWN" /></el-select><el-button :loading="loading" @click="load()">刷新</el-button><el-button v-if="canWrite" :disabled="!!pending || !documents.length" @click="retry">重新处理失败资料</el-button><router-link to="/knowledge/graph">查看知识图谱 →</router-link></div>
       <p class="list-caption">{{ filtered.length }} 份资料 · 支持{{ knowledgeFileFormats }}，单个文件最大 20 MiB</p>
       <el-alert v-if="documents.length>=200" title="当前接口展示最近 200 份资料，筛选在已加载的资料内进行。" type="info" :closable="false" />
-      <el-table v-loading="loading" :data="rows" row-key="docId" empty-text="暂无资料，上传一份工艺或设备文档开始构建知识库">
+      <el-table v-loading="loading" :data="rows" row-key="docId" :empty-text="emptyText">
         <el-table-column label="资料" min-width="220"><template #default="{row}"><div class="document-name"><span class="file-badge">{{ row.fileName?.split('.').pop()?.toUpperCase().slice(0,4) || 'TXT' }}</span><div><strong>{{ row.fileName }}</strong><small :title="row.docId">{{ row.docId }}</small></div></div></template></el-table-column>
         <el-table-column label="处理状态" min-width="160">
           <template #default="{ row }">
