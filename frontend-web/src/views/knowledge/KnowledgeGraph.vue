@@ -62,7 +62,21 @@ function draw() {
     data: view.nodes.map(node => ({ id: node.id, name: node.label, symbolSize: node.id === focus.value ? 40 : 25, itemStyle: { color: color(node), borderColor: '#fff', borderWidth: 3 }, value: node.type })),
     links: view.edges.map((edge, index) => ({ source: edge.source, target: edge.target, name: edge.description, value: edge.weight || 0, id: String(index) })),
   }
-  chart.setOption({ tooltip: { confine: true, formatter: (event: unknown) => { const item = event as { dataType: string; name: string; data: { source: string; target: string } }; return item.dataType === 'edge' ? escapeGraphText(nodeName(item.data.source)) + ' → ' + escapeGraphText(nodeName(item.data.target)) + '<br>' + escapeGraphText(item.name) : escapeGraphText(item.name) } }, animationDuration: 300, series: [series] }, true)
+  chart.setOption({
+    tooltip: {
+      confine: true,
+      formatter: (event: unknown) => {
+        const item = event as { dataType: string; name: string; data: { source: string; target: string; name: string } }
+        if (item.dataType !== 'edge') return escapeGraphText(item.name)
+
+        const endpoints = [item.data.source, item.data.target].map(id => escapeGraphText(nodeName(id))).join(' → ')
+        const description = escapeGraphText(item.data.name).replace(/\r?\n/g, '<br>')
+        return description ? endpoints + '<br>' + description : endpoints
+      },
+    },
+    animationDuration: 300,
+    series: [series],
+  }, true)
 }
 function reset() { query.value = ''; type.value = ''; focus.value = ''; selected.value = null; selectedEdge.value = null; nextTick(draw) }
 function zoom(factor: number) {
@@ -111,5 +125,6 @@ onUnmounted(() => { requestId++; observer?.disconnect(); chart?.dispose() })
 </template>
 
 <style scoped>
+.neighbor small{white-space:pre-wrap}
 .graph-heading{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;gap:16px}.eyebrow{font-size:10px;color:#6d8aa6;letter-spacing:2px;font-weight:600}.graph-heading h1{color:#213c56;font-size:26px;margin:10px 0}.graph-heading p{font-size:12px;color:#8996a7}.graph-heading a{font-size:12px;color:#4089ce;text-decoration:none}.graph-card{border-radius:10px}.graph-controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}.graph-controls label{display:block;font-size:11px;color:#8294a8;margin-bottom:8px}.graph-controls .el-select{width:220px}.graph-controls>div:nth-child(2) .el-select{width:130px}.graph-count{margin:auto 0 8px auto;font-size:12px;color:#7c8fa4}.graph-count b{padding:0 8px;color:#bdc8d5}.graph-filters{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 14px}.graph-filters .el-input{width:240px}.graph-filters .el-select{width:160px}.graph-canvas-wrap{position:relative;border:1px solid #e5edf5;background-color:#f8fbff;background-image:radial-gradient(#c7d8eb80 1px,transparent 1px);background-size:22px 22px;border-radius:10px;overflow:hidden}.graph-canvas{height:560px;width:100%}.graph-empty{position:absolute;inset:0;pointer-events:none}.graph-view-tools{position:absolute;right:14px;top:14px;display:flex;gap:5px}.graph-view-tools .el-button{margin:0}.graph-hint{position:absolute;bottom:8px;left:18px;font-size:11px;color:#8b9bb0;pointer-events:none}.graph-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:16px 0 0;font-size:11px;color:#8194a9}.graph-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px}.graph-legend small{margin-left:auto;color:#a0adbc}.graph-id{font-size:11px;color:#96a3b3;overflow-wrap:anywhere}.neighbor{display:block;text-align:left;background:#f6f9fd;border:1px solid #e7eef6;width:100%;border-radius:7px;padding:12px;margin:10px 0;color:#526b85;font-size:12px;cursor:pointer;overflow-wrap:anywhere}.neighbor small{display:block;color:#8a9bad;margin-top:8px;line-height:1.8}.edge-description{white-space:pre-wrap;line-height:1.9;color:#526b85;overflow-wrap:anywhere}.graph-arrow{color:#8aaccf;font-size:24px}.graph-export{display:block;width:100%;border:1px solid #edf1f6}.export-download{display:inline-block;padding:9px 15px;background:#409eff;color:white;text-decoration:none;border-radius:5px;margin-left:12px;font-size:13px}.graph-card :deep(.el-alert){margin-top:16px}@media(max-width:700px){.graph-heading{align-items:flex-start;flex-direction:column}.graph-count{width:100%;margin:0}.graph-controls>div:first-child{flex:1}.graph-controls>div:first-child .el-select{width:100%}.graph-canvas{height:480px}.graph-filters .el-input{flex:1;min-width:160px}.graph-legend small{width:100%;margin-left:0}}
 </style>

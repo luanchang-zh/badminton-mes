@@ -2,11 +2,23 @@ export interface KnowledgeNode { id: string; label: string; type: string }
 export interface KnowledgeEdge { source: string; target: string; description: string; weight: number | null }
 export interface KnowledgeGraph { nodes: KnowledgeNode[]; edges: KnowledgeEdge[]; truncated: boolean }
 
+function formatRelationshipDescription(description: string | null | undefined): string {
+  const descriptions = new Map<string, string>()
+  for (const part of (description ?? '').split('<SEP>')) {
+    const text = part.trim()
+    const key = text.normalize().replace(/\s+/g, ' ').replace(/[。.!！?？]+$/u, '')
+    if (key && !descriptions.has(key)) descriptions.set(key, text)
+  }
+  return [...descriptions.values()].join('\n')
+}
+
 /** Deduplicate upstream nodes and discard edges with missing endpoints. */
 export function normalizeGraph(graph: KnowledgeGraph): KnowledgeGraph {
   const nodes = [...new Map((graph.nodes || []).filter(node => node.id).map(node => [node.id, node])).values()]
   const ids = new Set(nodes.map(node => node.id))
-  const edges = (graph.edges || []).filter(edge => ids.has(edge.source) && ids.has(edge.target))
+  const edges = (graph.edges || [])
+    .filter(edge => ids.has(edge.source) && ids.has(edge.target))
+    .map(edge => ({ ...edge, description: formatRelationshipDescription(edge.description) }))
   return { nodes: nodes.map(node => ({ ...node, type: node.type || '未分类' })), edges, truncated: Boolean(graph.truncated) }
 }
 

@@ -16,6 +16,22 @@ test('normalization removes duplicate nodes and dangling links while retaining t
   assert.equal(result.edges.length, 2)
   assert.equal(result.truncated, true)
 })
+test('relationship descriptions split LightRAG separators and keep distinct statements in order', () => {
+  const description = ' 青羽样品的编号为 QY-1121。<SEP>青羽样品的编号为  QY-1121.<SEP><SEP>青羽样品存放在 B-12。<SEP>青羽样品的编号为 QY-1121。 '
+  const edges = [
+    { source: 'a', target: 'b', description, weight: 2 },
+    { source: 'b', target: 'c', description: '下一工序', weight: 1 },
+    { source: 'c', target: 'a', description: '<SEP> <SEP>', weight: null },
+    { source: 'b', target: 'a', description: null, weight: null },
+  ]
+  const result = normalizeGraph({ ...graph, edges })
+  assert.equal(result.edges[0].description, '青羽样品的编号为 QY-1121。\n青羽样品存放在 B-12。')
+  assert.equal(result.edges[0].weight, 2)
+  assert.equal(result.edges[1].description, '下一工序')
+  assert.equal(result.edges[2].description, '')
+  assert.equal(result.edges[3].description, '')
+  assert.equal(edges[0].description, description)
+})
 test('search preserves immediate neighbors but excludes unrelated nodes', () => {
   const result = filterGraph(graph, '球头')
   assert.equal(result.nodes.length, 2)
