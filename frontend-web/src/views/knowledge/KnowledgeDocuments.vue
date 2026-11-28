@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadFile, UploadUserFile } from 'element-plus'
+import StatCard from '@/components/base/StatCard.vue'
 import { usePermission } from '@/composables/usePermission'
 import * as api from '@/api/rag'
 import type { KnowledgeDocument } from '@/api/rag'
@@ -114,12 +115,30 @@ onUnmounted(() => { requestId++; previewRequest++; clearInterval(timer) })
 
 <template>
   <div class="page-container knowledge-documents">
-    <header class="knowledge-heading"><div><span class="eyebrow">KNOWLEDGE WORKSPACE</span><h1>文件管理</h1><p>从原始资料到知识关联，每一次更新都有迹可循。</p></div><div class="heading-actions"><el-tag round effect="plain">当前账号的独立知识库</el-tag><el-button v-if="canWrite" type="primary" @click="openUpload()">上传资料</el-button></div></header>
-    <div class="document-stats"><article><span>全部资料</span><strong>{{ documents.length }}</strong></article><article><span>处理完成</span><strong class="green">{{ completed }}</strong></article><article><span>正在处理</span><strong class="blue">{{ processing }}</strong></article><article><span>需要关注</span><strong class="orange">{{ failed }}</strong></article></div>
+    <div class="document-stats">
+      <StatCard label="全部资料" :value="documents.length" />
+      <StatCard label="处理完成" :value="completed" />
+      <StatCard label="正在处理" :value="processing" />
+      <StatCard label="需要关注" :value="failed" />
+    </div>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
     <el-alert v-if="!canWrite" title="当前账号可查看和下载资料；上传、更新和删除需要管理员或工艺工程师角色。" type="info" :closable="false" />
     <el-card shadow="never" class="document-card">
-      <div class="document-toolbar"><el-input v-model="query" clearable placeholder="搜索文件名或文档编号" aria-label="搜索文件名或文档编号" @input="page=1" /><el-select v-model="status" clearable placeholder="全部处理状态" aria-label="筛选处理状态" @change="page=1"><el-option label="处理中" value="PROCESSING" /><el-option label="已完成" value="COMPLETED" /><el-option label="失败" value="FAILED" /><el-option label="未知" value="UNKNOWN" /></el-select><el-button :loading="loading" @click="load()">刷新</el-button><el-button v-if="canWrite" :disabled="!!pending || !documents.length" @click="retry">重新处理失败资料</el-button><router-link to="/knowledge/graph">查看知识图谱 →</router-link></div>
+      <div class="document-toolbar">
+        <el-input v-model="query" clearable placeholder="搜索文件名或文档编号" aria-label="搜索文件名或文档编号" @input="page=1" />
+        <el-select v-model="status" clearable placeholder="全部处理状态" aria-label="筛选处理状态" @change="page=1">
+          <el-option label="处理中" value="PROCESSING" />
+          <el-option label="已完成" value="COMPLETED" />
+          <el-option label="失败" value="FAILED" />
+          <el-option label="未知" value="UNKNOWN" />
+        </el-select>
+        <div class="document-actions">
+          <el-button :loading="loading" @click="load()">刷新</el-button>
+          <el-button v-if="canWrite" :disabled="!!pending || !documents.length" @click="retry">重新处理失败资料</el-button>
+          <el-button v-if="canWrite" type="primary" @click="openUpload()">上传资料</el-button>
+        </div>
+        <router-link to="/knowledge/graph">查看知识图谱 →</router-link>
+      </div>
       <p class="list-caption">{{ filtered.length }} 份资料 · 支持{{ knowledgeFileFormats }}，单个文件最大 20 MiB</p>
       <el-alert v-if="documents.length>=200" title="当前接口展示最近 200 份资料，筛选在已加载的资料内进行。" type="info" :closable="false" />
       <el-table v-loading="loading" :data="rows" row-key="docId" :empty-text="emptyText">
@@ -150,5 +169,27 @@ onUnmounted(() => { requestId++; previewRequest++; clearInterval(timer) })
 </template>
 
 <style scoped>
-.knowledge-heading{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:10px 2px}.eyebrow{font-size:10px;letter-spacing:2px;color:#6d8aa6;font-weight:600}.knowledge-heading h1{font-size:26px;letter-spacing:1px;color:#213c56;margin:10px 0}.knowledge-heading p,.list-caption{font-size:12px;color:#8996a7;line-height:1.8}.heading-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.document-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.document-stats article{background:#fff;border:1px solid #e7edf5;border-radius:10px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between}.document-stats span{font-size:12px;color:#8393a5}.document-stats strong{font-size:26px;color:#304962;font-weight:600}.document-stats .green{color:#28a28a}.document-stats .blue{color:#4a8bd5}.document-stats .orange{color:#d8a054}.document-card{border-radius:10px}.document-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.document-toolbar>.el-input{width:240px}.document-toolbar>.el-select{width:155px}.document-toolbar>.el-button{margin:0}.document-toolbar>a{margin-left:auto;color:#4089ce;font-size:12px;text-decoration:none}.document-name{display:flex;gap:12px;align-items:center}.file-badge{display:flex;align-items:center;justify-content:center;border-radius:9px;background:#eef5ff;color:#5187bd;width:42px;height:48px;flex-shrink:0;font-size:10px;font-weight:700}.document-name strong{font-size:13px;overflow-wrap:anywhere;color:#40556b}.document-name small{display:block;color:#9aa6b6;font-size:10px;max-width:230px;overflow:hidden;text-overflow:ellipsis;margin-top:7px}.raw-status{display:block;color:#a3adba;font-size:10px;margin-top:6px}.row-actions{display:flex;gap:8px 12px;flex-wrap:wrap}.row-actions .el-button{margin:0;font-size:12px}.document-pagination{justify-content:flex-end;margin-top:22px;max-width:100%;overflow:auto}.document-content{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.9 inherit;color:#40556b}.upload-icon{font-size:44px;color:#6e9ecb;margin-bottom:15px}.upload-outcome{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12px;padding:12px 0;border-bottom:1px solid #edf1f6}.upload-outcome>span{overflow-wrap:anywhere;color:#8190a2}.upload-outcome .el-tag{height:auto;white-space:normal;max-width:65%;line-height:1.8} :deep(.el-upload),:deep(.el-upload-dragger){width:100%} :deep(.el-table th){background:#f7f9fc}@media(max-width:800px){.knowledge-heading{align-items:flex-start;flex-direction:column}.document-stats{grid-template-columns:repeat(2,1fr)}.document-stats article{padding:14px}.document-toolbar>.el-input{width:100%}.document-toolbar>a{margin-left:0}}
+.document-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.document-card { border-radius: 4px; }
+.document-toolbar, .document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.document-toolbar > .el-input { width: 240px; }
+.document-toolbar > .el-select { width: 155px; }
+.document-actions > .el-button { margin: 0; }
+.document-toolbar > a { margin-left: auto; color: #4089ce; font-size: 12px; text-decoration: none; }
+.list-caption { font-size: 12px; color: #8996a7; line-height: 1.8; }
+.document-name{display:flex;gap:12px;align-items:center}.file-badge{display:flex;align-items:center;justify-content:center;border-radius:9px;background:#eef5ff;color:#5187bd;width:42px;height:48px;flex-shrink:0;font-size:10px;font-weight:700}.document-name strong{font-size:13px;overflow-wrap:anywhere;color:#40556b}.document-name small{display:block;color:#9aa6b6;font-size:10px;max-width:230px;overflow:hidden;text-overflow:ellipsis;margin-top:7px}.raw-status{display:block;color:#a3adba;font-size:10px;margin-top:6px}.row-actions{display:flex;gap:8px 12px;flex-wrap:wrap}.row-actions .el-button{margin:0;font-size:12px}.document-pagination{justify-content:flex-end;margin-top:22px;max-width:100%;overflow:auto}.document-content{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.9 inherit;color:#40556b}.upload-icon{font-size:44px;color:#6e9ecb;margin-bottom:15px}.upload-outcome{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12px;padding:12px 0;border-bottom:1px solid #edf1f6}.upload-outcome>span{overflow-wrap:anywhere;color:#8190a2}.upload-outcome .el-tag{height:auto;white-space:normal;max-width:65%;line-height:1.8} :deep(.el-upload),:deep(.el-upload-dragger){width:100%} :deep(.el-table th){background:#f7f9fc}
+@media (max-width: 800px) {
+  .document-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .document-toolbar > .el-input { width: 100%; }
+  .document-toolbar > a { margin-left: 0; }
+}
 </style>
